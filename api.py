@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import List, Optional, Dict, Any
 from contextlib import asynccontextmanager
 import logging
@@ -116,8 +116,12 @@ class ProductUpdate(BaseModel):
     category: Optional[str] = None
     normalized_title: Optional[str] = None
     normalized_body_html: Optional[str] = None
-    llm_confidence: Optional[float] = None
-    gmc_category_label: Optional[str] = None
+    @field_validator('llm_confidence')
+    @classmethod
+    def validate_confidence(cls, v):
+        if v is not None and (v < 0 or v > 1):
+            raise ValueError('Confidence must be between 0 and 1')
+        return v
 
 class ModelPullRequest(BaseModel):
     model_name: str
@@ -297,55 +301,9 @@ async def batch_process_endpoint(request: BatchProcessRequest):
         logging.error(f"Error in batch processing: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
-@app.post("/api/pipeline/run")
-async def run_pipeline_endpoint(request: PipelineRunRequest):
-    """Run pipeline processing for products and return results"""
-    try:
-        if not request.product_ids:
-            # Fetch all product IDs if none are specified
-            products = await get_all_products(settings.paths.database)
-            product_ids = [product['id'] for product in products]
-        else:
-            product_ids = request.product_ids
-
-        # Initialize manager and run pipeline synchronously
-        manager = MultiModelSEOManager()
-
-        # Run the pipeline and wait for results
-        results = await manager.batch_process_products(product_ids, request.task_type)
-
-        # Format results for frontend
-        processed_results = []
-        for result in results:
-            if 'error' not in result:
-                # Success case
-                processed_results.append({
-                    'product_id': result['product_id'],
-                    'status': 'success',
-                    'data': result.get('data', {}),
-                    'model_used': result.get('model_used', 'unknown')
-                })
-            else:
-                # Error case
-                processed_results.append({
-                    'product_id': result['product_id'],
-                    'status': 'error',
-                    'error': result['error']
-                })
-
-        return {
-            "status": "completed",
-            "task_type": request.task_type.value,
-            "product_count": len(product_ids),
-            "processed_count": len([r for r in processed_results if r['status'] == 'success']),
-            "failed_count": len([r for r in processed_results if r['status'] == 'error']),
-            "results": processed_results,
-            "message": f"Pipeline {request.task_type.value} completed for {len(product_ids)} products"
-        }
-
-    except Exception as e:
-        logging.error(f"Error running pipeline: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+# Remove duplicate run_pipeline_endpoint function (lines 300-348)
+# This function is duplicated - keeping the first implementation (lines 192-225)
+# which returns immediate results instead of just starting the pipeline
 
 @app.get("/api/workers/status")
 async def get_worker_status():
