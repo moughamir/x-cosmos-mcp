@@ -16,7 +16,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 # Database and utility imports
 from utils.db import (
     get_all_products, get_product_details, update_product_details,
-    get_products_for_review, mark_as_reviewed, get_change_log, update_database_schema, get_db_schema
+    get_products_for_review, mark_as_reviewed, get_change_log, update_database_schema, get_db_schema, get_pipeline_runs
 )
 from utils.db_migrate import migrate_schema
 from utils.ollama_manager import list_ollama_models, pull_ollama_model
@@ -140,6 +140,15 @@ async def run_pipeline(request: PipelineRunRequest):
 
     results = await manager.batch_process_products(product_ids, request.task_type)
     return {"status": "success", "results": results}
+
+@app.get("/api/pipeline/runs")
+async def get_pipeline_runs_endpoint(limit: int = 100):
+    try:
+        runs = await get_pipeline_runs(settings.paths.database, limit=limit)
+        return runs
+    except Exception as e:
+        logging.error(f"Error fetching pipeline runs: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 @app.get("/api/db/schema")
 async def get_db_schema_endpoint():

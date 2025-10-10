@@ -171,3 +171,61 @@ async def update_database_schema(db_path: str):
         """)
         
         await conn.commit()
+
+async def create_pipeline_run(db_path: str, task_type: str, total_products: int) -> int:
+    async with aiosqlite.connect(db_path) as conn:
+        cur = await conn.cursor()
+        now = datetime.datetime.now().isoformat()
+        await cur.execute(
+            """
+            INSERT INTO pipeline_runs (task_type, status, start_time, total_products)
+            VALUES (?, ?, ?, ?)
+            """,
+            (task_type, "RUNNING", now, total_products),
+        )
+        await conn.commit()
+        return cur.lastrowid
+
+async def update_pipeline_run(db_path: str, run_id: int, processed_products: int = None, failed_products: int = None, status: str = None):
+    async with aiosqlite.connect(db_path) as conn:
+        cur = await conn.cursor()
+        set_clauses = []
+        values = []
+        if processed_products is not None:
+            set_clauses.append("processed_products = ?")
+            values.append(processed_products)
+        if failed_products is not None:
+            set_clauses.append("failed_products = ?")
+            values.append(failed_products)
+        if status is not None:
+            set_clauses.append("status = ?")
+            values.append(status)
+        
+        if not set_clauses:
+            return # No fields to update
+
+        sql = f"UPDATE pipeline_runs SET {', '.join(set_clauses)} WHERE id = ?"
+        values.append(run_id)
+        
+        await cur.execute(sql, tuple(values))
+        await conn.commit()
+
+async def complete_pipeline_run(db_path: str, run_id: int, status: str, processed_products: int, failed_products: int):
+    async with aiosqlite.connect(db_path) as conn:
+        cur = await conn.cursor()
+        now = datetime.datetime.now().isoformat()
+        await cur.execute(
+            "UPDATE pipeline_runs SET status = ?, end_time = ?, processed_products = ?, failed_products = ? WHERE id = ?",
+            (status, now, processed_products, failed_products, run_id),
+        )
+        await conn.commit()
+
+async def get_pipeline_runs(db_path: str, limit: int = 100):
+    async with aiosqlite.connect(db_path) as conn:
+        conn.row_factory = aiosqlite.Row
+        cur = await conn.cursor()
+        await cur.execute(
+            "SELECT id, task_type, status, start_time, end_time, total_products, processed_products, failed_products FROM pipeline_runs ORDER BY start_time DESC LIMIT ?",
+            (limit,),
+        )
+        return await cur.fetchall()

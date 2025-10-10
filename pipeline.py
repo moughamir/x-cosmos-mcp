@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 
 from config import settings, TaskType # Import settings and TaskType from config
 import aiosqlite
-from utils.db import log_change, update_product_details
+from utils.db import log_change, update_product_details, create_pipeline_run, update_pipeline_run, complete_pipeline_run
 from utils.category_normalizer import normalize_categories
 
 # Configure logging
