@@ -31,7 +31,8 @@ async def migrate_schema(db_path: str):
                 print(f"Column {col_name} already exists in products table.")
 
         # Version 2: Create changes_log table
-        """
+        print("Ensuring changes_log table exists.")
+        await cur.execute("""
             CREATE TABLE IF NOT EXISTS changes_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 product_id INTEGER,
@@ -42,9 +43,7 @@ async def migrate_schema(db_path: str):
                 source TEXT,
                 reviewed INTEGER DEFAULT 0
             );
-        """
-        )
-
+        """)
         # Version 3: Create pipeline_runs table
         print("Ensuring pipeline_runs table exists.")
         await cur.execute("""

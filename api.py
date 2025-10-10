@@ -25,6 +25,7 @@ from config import settings, TaskType
 import asyncio
 import aiohttp
 import aiosqlite
+from utils.taxonomy import load_taxonomy, get_top_level_categories
 
 # Lifespan event handler for startup and shutdown events
 @asynccontextmanager
@@ -148,6 +149,25 @@ async def get_pipeline_runs_endpoint(limit: int = 100):
         return runs
     except Exception as e:
         logging.error(f"Error fetching pipeline runs: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+@app.get("/api/taxonomy/tree")
+async def get_taxonomy_tree_endpoint():
+    try:
+        taxonomy_tree = load_taxonomy()
+        # Convert TaxonomyNode objects to dicts for JSON serialization
+        return {name: node.to_dict() for name, node in taxonomy_tree.items()}
+    except Exception as e:
+        logging.error(f"Error fetching taxonomy tree: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+@app.get("/api/taxonomy/top-level")
+async def get_top_level_taxonomy_endpoint():
+    try:
+        top_level_categories = get_top_level_categories()
+        return top_level_categories
+    except Exception as e:
+        logging.error(f"Error fetching top-level taxonomy categories: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 @app.get("/api/db/schema")
