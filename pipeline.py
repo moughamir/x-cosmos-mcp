@@ -137,11 +137,49 @@ class MultiModelSEOManager:
         }}
         """
         
-        return await self._call_model_with_fallback(model, prompt, task_type=TaskType.KEYWORD_ANALYSIS)
+    async def optimize_tags(self, product_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze and optimize product tags using AI"""
+        model = await self.get_best_model_for_task(TaskType.TAG_OPTIMIZATION)
+
+        current_tags = product_data.get('tags', '')
+        title = product_data.get('title', '')
+        description = self._clean_html(product_data.get('body_html', ''))
+        category = product_data.get('product_type', '')
+
+        prompt = f"""
+        ANALYZE AND OPTIMIZE PRODUCT TAGS FOR SEO:
+
+        Product Title: {title}
+        Category: {category}
+        Current Tags: {current_tags}
+        Description: {description[:800]}
+
+        Task: Analyze current tags and generate improved SEO-optimized tags that:
+        1. Include primary product keywords
+        2. Add relevant long-tail keywords
+        3. Remove redundant or irrelevant tags
+        4. Ensure proper tag formatting (comma-separated)
+        5. Maintain brand/product specificity
+        6. Follow SEO best practices (10-15 tags max)
+
+        Return JSON with:
+        - optimized_tags: comma-separated string of improved tags
+        - removed_tags: array of tags that were removed
+        - added_tags: array of new tags that were added
+        - tag_analysis: brief explanation of changes made
+
+        JSON Response:
+        {{
+            "optimized_tags": "tag1, tag2, tag3, tag4",
+            "removed_tags": ["old_tag1", "redundant_tag"],
+            "added_tags": ["new_tag1", "relevant_tag"],
+            "tag_analysis": "Brief explanation of optimization strategy"
+        }}
+        """
+
+        return await self._call_model_with_fallback(model, prompt, task_type=TaskType.TAG_OPTIMIZATION)
     
     async def _call_model_with_fallback(self, model: str, prompt: str, task_type: TaskType, max_retries: int = 3) -> Dict[str, Any]:
-        """Call model with fallback to other models if needed"""
-        for attempt in range(max_retries):
             current_model = model
             try:
                 result = await self._call_ollama_model(current_model, prompt)

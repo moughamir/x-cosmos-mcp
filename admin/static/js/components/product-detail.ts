@@ -5,6 +5,8 @@ export interface Product {
 	id: number;
 	title: string;
 	body_html: string;
+	category: string;
+	normalized_category: string;
 	normalized_title: string;
 	normalized_body_html: string;
 	llm_confidence: number;
@@ -166,6 +168,26 @@ export class ProductDetail extends LitElement {
             .value="${this.editedProduct.body_html || ""}"
             @input="${this.handleInputChange}"
           ></textarea>
+        </div>
+        <div class="form-group">
+          <label for="category">Category</label>
+          <input
+            type="text"
+            id="category"
+            name="category"
+            .value="${this.editedProduct.category || ""}"
+            @input="${this.handleInputChange}"
+          />
+        </div>
+        <div class="form-group">
+          <label for="normalized_category">Normalized Category</label>
+          <input
+            type="text"
+            id="normalized_category"
+            name="normalized_category"
+            .value="${this.editedProduct.normalized_category || ""}"
+            @input="${this.handleInputChange}"
+          />
         </div>
         <div class="form-group">
           <label for="normalized_title">Normalized Title</label>

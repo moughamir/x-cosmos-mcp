@@ -9,6 +9,7 @@ class TaskType(Enum):
     KEYWORD_ANALYSIS = "keyword_analysis"
     SCHEMA_ANALYSIS = "schema_analysis"
     CATEGORY_NORMALIZATION = "category_normalization"
+    TAG_OPTIMIZATION = "tag_optimization"
 
 class ModelConfig(BaseModel):
     tasks: List[TaskType]
