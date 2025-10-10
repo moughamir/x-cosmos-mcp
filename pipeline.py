@@ -10,6 +10,7 @@ from bs4 import BeautifulSoup
 from config import settings, TaskType # Import settings and TaskType from config
 import aiosqlite
 from utils.db import log_change, update_product_details
+from utils.category_normalizer import normalize_categories
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -51,7 +52,7 @@ class MultiModelSEOManager:
             response = requests.post(
                 f"{self.ollama_url}/api/generate",
                 json={"model": model_name, "prompt": "test", "stream": False},
-                timeout=5  # Reduced timeout
+                timeout=500
             )
             return response.status_code == 200
         except:
@@ -181,7 +182,7 @@ class MultiModelSEOManager:
                     "num_predict": capabilities.get("max_tokens", 1024)
                 }
             },
-            timeout=120  # Increased from 60 to 120 seconds for potentially longer inference
+            timeout=500
         )
         
         if response.status_code == 200: 
@@ -246,6 +247,11 @@ class MultiModelSEOManager:
             return ""
         soup = BeautifulSoup(html_content, 'html.parser')
         return soup.get_text().strip()
+
+    async def _normalize_categories_for_products(self, product_ids: List[int]):
+        """Normalize categories for a given list of product IDs."""
+        await normalize_categories(self.db_path, product_ids=product_ids)
+
     
     async def batch_process_products(self, product_ids: List[int], task_type: TaskType):
         """Process multiple products with the appropriate model"""
@@ -254,6 +260,13 @@ class MultiModelSEOManager:
             cursor = await conn.cursor()
             
             results = []
+            
+            if task_type == TaskType.CATEGORY_NORMALIZATION:
+                await self._normalize_categories_for_products(product_ids=product_ids)
+                for product_id in product_ids:
+                    results.append({'product_id': product_id, 'status': 'Category normalized'})
+                return results
+
             for product_id in product_ids:
                 await cursor.execute(
                     "SELECT id, title, body_html, product_type, tags FROM products WHERE id = ?",
@@ -329,7 +342,8 @@ async def main():
     task_mapping = {
         'meta': TaskType.META_OPTIMIZATION,
         'content': TaskType.CONTENT_REWRITING, 
-        'keywords': TaskType.KEYWORD_ANALYSIS
+        'keywords': TaskType.KEYWORD_ANALYSIS,
+        'category': TaskType.CATEGORY_NORMALIZATION
     }
     
     task_type = task_mapping[args.task]
@@ -341,7 +355,7 @@ async def main():
         async with aiosqlite.connect(manager.db_path) as conn:
             cursor = await conn.cursor()
             await cursor.execute("SELECT id FROM products LIMIT 10")
-            product_ids = [row['id'] for row in await cursor.fetchall()]
+            product_ids = [row[0] for row in await cursor.fetchall()]
     
     print(f"🚀 Starting {task_type.value} for {len(product_ids)} products...")
     

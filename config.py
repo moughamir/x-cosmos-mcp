@@ -1,18 +1,27 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict, YamlConfigSettingsSource
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import ClassVar, List, Dict, Any
 from enum import Enum
 
 class TaskType(Enum):
     META_OPTIMIZATION = "meta_optimization"
-    CONTENT_REWRITING = "content_rewriting" 
+    CONTENT_REWRITING = "content_rewriting"
     KEYWORD_ANALYSIS = "keyword_analysis"
     SCHEMA_ANALYSIS = "schema_analysis"
+    CATEGORY_NORMALIZATION = "category_normalization"
 
 class ModelConfig(BaseModel):
     tasks: List[TaskType]
     description: str
     max_tokens: int
+
+    @field_validator('tasks', mode='before')
+    @classmethod
+    def convert_tasks_to_enum(cls, v):
+        """Convert list of strings to TaskType enums"""
+        if isinstance(v, list):
+            return [TaskType(task_str) for task_str in v]
+        return v
 
 class ModelCapabilities(BaseModel):
     capabilities: Dict[str, ModelConfig]
