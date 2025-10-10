@@ -1,14 +1,14 @@
-import { LitElement, html, css } from 'lit';
-import { customElement, state } from 'lit/decorators.js';
+import { css, html, LitElement } from "lit";
+import { customElement, state } from "lit/decorators.js";
 
-interface Product {
-  id: number;
-  title: string;
+export interface Product {
+	id: number;
+	title: string;
 }
 
-@customElement('pipeline-management')
+@customElement("pipeline-management")
 export class PipelineManagement extends LitElement {
-  static styles = css`
+	static styles = css`
     :host {
       display: block;
       padding: 1rem;
@@ -29,7 +29,7 @@ export class PipelineManagement extends LitElement {
       border-radius: 0.25rem;
     }
     .run-button {
-      background-color: #4F46E5; /* indigo-600 */
+      background-color: #4f46e5; /* indigo-600 */
       color: white;
       font-weight: bold;
       padding: 0.75rem 1.5rem;
@@ -38,7 +38,7 @@ export class PipelineManagement extends LitElement {
       cursor: pointer;
     }
     .run-button:hover {
-      background-color: #4338CA; /* indigo-700 */
+      background-color: #4338ca; /* indigo-700 */
     }
     .product-selector {
       max-height: 200px;
@@ -57,86 +57,97 @@ export class PipelineManagement extends LitElement {
     }
   `;
 
-  @state()
-  private taskType: string = 'meta_optimization';
+	@state()
+	private taskType: string = "meta_optimization";
 
-  @state()
-  private allProducts: Product[] = [];
+	@state()
+	private allProducts: Product[] = [];
 
-  @state()
-  private selectedProductIds: Set<number> = new Set();
+	@state()
+	private selectedProductIds: Set<number> = new Set();
 
-  async connectedCallback() {
-    super.connectedCallback();
-    this.fetchAllProducts();
-  }
+	async connectedCallback() {
+		super.connectedCallback();
+		this.fetchAllProducts();
+	}
 
-  async fetchAllProducts() {
-    try {
-      const response = await fetch('/api/products');
-      const products = await response.json();
-      this.allProducts = products.map((p: any) => ({ id: p.id, title: p.title }));
-    } catch (error) {
-      console.error('Error fetching all products:', error);
-    }
-  }
+	async fetchAllProducts() {
+		try {
+			const response = await fetch("/api/products");
+			const products = await response.json();
+			this.allProducts = products.map((p: Product) => ({
+				id: p.id,
+				title: p.title,
+			}));
+		} catch (error) {
+			console.error("Error fetching all products:", error);
+		}
+	}
 
-  handleTaskTypeChange(e: Event) {
-    this.taskType = (e.target as HTMLSelectElement).value;
-  }
+	handleTaskTypeChange(e: Event) {
+		this.taskType = (e.target as HTMLSelectElement).value;
+	}
 
-  handleProductSelection(e: Event) {
-    const checkbox = e.target as HTMLInputElement;
-    const productId = parseInt(checkbox.value);
-    if (checkbox.checked) {
-      this.selectedProductIds.add(productId);
-    } else {
-      this.selectedProductIds.delete(productId);
-    }
-    this.requestUpdate(); // Force re-render to update checkbox states
-  }
+	handleProductSelection(e: Event) {
+		const checkbox = e.target as HTMLInputElement;
+		const productId = parseInt(checkbox.value, 10);
+		if (checkbox.checked) {
+			this.selectedProductIds.add(productId);
+		} else {
+			this.selectedProductIds.delete(productId);
+		}
+		this.requestUpdate(); // Force re-render to update checkbox states
+	}
 
-  async runPipeline() {
-    if (!this.taskType) {
-      alert('Please select a task type.');
-      return;
-    }
+	async runPipeline() {
+		if (!this.taskType) {
+			alert("Please select a task type.");
+			return;
+		}
 
-    const productIdsArray = Array.from(this.selectedProductIds);
+		const productIdsArray = Array.from(this.selectedProductIds);
 
-    try {
-      const response = await fetch('/api/pipeline/run', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          task_type: this.taskType,
-          product_ids: productIdsArray,
-        }),
-      });
-      if (response.ok) {
-        const result = await response.json();
-        alert(`Pipeline run initiated for ${this.taskType}. Results: ${JSON.stringify(result.results)}`);
-        this.selectedProductIds.clear(); // Clear selection after run
-        this.requestUpdate();
-      } else {
-        alert('Failed to initiate pipeline run.');
-      }
-    } catch (error) {
-      console.error('Error running pipeline:', error);
-      alert('Error running pipeline.');
-    }
-  }
+		try {
+			const response = await fetch("/api/pipeline/run", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({
+					task_type: this.taskType,
+					product_ids: productIdsArray,
+				}),
+			});
+			if (response.ok) {
+				const result = await response.json();
+				alert(
+					`Pipeline run initiated for ${
+						this.taskType
+					}. Results: ${JSON.stringify(result.results)}`,
+				);
+				this.selectedProductIds.clear(); // Clear selection after run
+				this.requestUpdate();
+			} else {
+				alert("Failed to initiate pipeline run.");
+			}
+		} catch (error) {
+			console.error("Error running pipeline:", error);
+			alert("Error running pipeline.");
+		}
+	}
 
-  render() {
-    return html`
+	render() {
+		return html`
       <div class="container mx-auto p-4">
         <h1 class="text-2xl font-bold mb-4">Pipeline Management</h1>
 
         <div class="form-group">
           <label for="taskType">Select Task Type:</label>
-          <select id="taskType" .value="${this.taskType}" @change="${this.handleTaskTypeChange}">
+          <select
+            id="taskType"
+            .value="${this.taskType}"
+            @change="${this.handleTaskTypeChange}"
+          >
             <option value="meta_optimization">Meta Optimization</option>
             <option value="content_rewriting">Content Rewriting</option>
             <option value="keyword_analysis">Keyword Analysis</option>
@@ -147,24 +158,28 @@ export class PipelineManagement extends LitElement {
           <label>Select Products (optional, leave blank to process all):</label>
           <div class="product-selector">
             ${this.allProducts.map(
-              (product) => html`
+							(product) => html`
                 <div class="product-item">
-                  <input 
-                    type="checkbox" 
-                    id="product-${product.id}" 
+                  <input
+                    type="checkbox"
+                    id="product-${product.id}"
                     value="${product.id}"
                     ?checked="${this.selectedProductIds.has(product.id)}"
                     @change="${this.handleProductSelection}"
                   />
-                  <label for="product-${product.id}">${product.title} (ID: ${product.id})</label>
+                  <label for="product-${product.id}"
+                    >${product.title} (ID: ${product.id})</label
+                  >
                 </div>
-              `
-            )}
+              `,
+						)}
           </div>
         </div>
 
-        <button @click="${this.runPipeline}" class="run-button">Run Pipeline</button>
+        <button @click="${this.runPipeline}" class="run-button">
+          Run Pipeline
+        </button>
       </div>
     `;
-  }
+	}
 }

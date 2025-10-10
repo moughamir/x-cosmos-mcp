@@ -10,3 +10,5 @@ __pycache__
 *.log
 *.csv
 node_modules
+*.sqlite-shm
+*.sqlite-wal
