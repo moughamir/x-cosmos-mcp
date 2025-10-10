@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class MultiModelSEOManager:
     def __init__(self):
         self.db_path = settings.paths.database
-        self.ollama_url = f"{settings.ollama.host}:{settings.ollama.port}"
+        self.ollama_url = settings.ollama.base_url  # Use proper base_url instead of manual construction
         self.model_capabilities = settings.model_capabilities.capabilities
         self.fallback_order = settings.model_capabilities.fallback_order
     
@@ -39,10 +39,19 @@ class MultiModelSEOManager:
     async def _check_model_availability(self, model_name: str) -> bool:
         """Check if a model is available in Ollama"""
         try:
+            # First check if model exists in the tags list
+            response = requests.get(f"{self.ollama_url}/api/tags", timeout=5)
+            if response.status_code == 200:
+                tags_data = response.json()
+                available_models = [model['name'] for model in tags_data.get('models', [])]
+                if model_name in available_models:
+                    return True
+
+            # Fallback to generation test with shorter timeout
             response = requests.post(
                 f"{self.ollama_url}/api/generate",
                 json={"model": model_name, "prompt": "test", "stream": False},
-                timeout=10
+                timeout=5  # Reduced timeout
             )
             return response.status_code == 200
         except:
@@ -154,7 +163,11 @@ class MultiModelSEOManager:
     
     async def _call_ollama_model(self, model: str, prompt: str) -> Dict[str, Any]:
         """Make actual call to Ollama model"""
-        capabilities = self.model_capabilities.get(model, {"max_tokens": 1024})
+        capabilities_obj = self.model_capabilities.get(model)
+        if capabilities_obj:
+            capabilities = capabilities_obj.model_dump()
+        else:
+            capabilities = {"max_tokens": 1024}
         
         response = requests.post(
             f"{self.ollama_url}/api/generate",
@@ -165,10 +178,10 @@ class MultiModelSEOManager:
                 "options": {
                     "temperature": 0.3,
                     "top_p": 0.9,
-                    "num_predict": capabilities.max_tokens
+                    "num_predict": capabilities.get("max_tokens", 1024)
                 }
             },
-            timeout=120
+            timeout=60  # Reduced from 120 to 60 seconds for faster failure
         )
         
         if response.status_code == 200: 
