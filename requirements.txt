@@ -8,4 +8,8 @@ sqlite-utils
 ruff
 aiosqlite
 pydantic-settings
-
+ollama
+httpx
+requests
+beautifulsoup4
+aiohttp

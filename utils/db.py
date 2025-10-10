@@ -1,6 +1,9 @@
 import aiosqlite
 import datetime
 import json
+import logging
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 async def get_products_batch(db_path: str, limit=10):
     async with aiosqlite.connect(db_path) as conn:
@@ -23,31 +26,46 @@ async def get_products_for_review(db_path: str, limit=10):
         return await cur.fetchall()
 
 async def get_all_products(db_path: str):
-    async with aiosqlite.connect(db_path) as conn:
-        conn.row_factory = aiosqlite.Row
-        cur = await conn.cursor()
-        await cur.execute("SELECT id, title, llm_confidence, gmc_category_label FROM products")
-        return await cur.fetchall()
+    try:
+        async with aiosqlite.connect(db_path) as conn:
+            conn.row_factory = aiosqlite.Row
+            cur = await conn.cursor()
+            await cur.execute("SELECT id, title, llm_confidence, gmc_category_label FROM products")
+            return await cur.fetchall()
+    except Exception as e:
+        logging.error(f"Error in get_all_products: {e}", exc_info=True)
+        raise
 
 async def get_product_details(db_path: str, product_id: int):
-    async with aiosqlite.connect(db_path) as conn:
-        conn.row_factory = aiosqlite.Row
-        cur = await conn.cursor()
-        await cur.execute("SELECT * FROM products WHERE id = ?", (product_id,))
-        product = await cur.fetchone()
-        await cur.execute("SELECT * FROM changes_log WHERE product_id = ? ORDER BY created_at DESC", (product_id,))
-        changes = await cur.fetchall()
-        return {"product": product, "changes": changes}
+    try:
+        async with aiosqlite.connect(db_path) as conn:
+            conn.row_factory = aiosqlite.Row
+            cur = await conn.cursor()
+            await cur.execute("SELECT * FROM products WHERE id = ?", (product_id,))
+            product = await cur.fetchone()
+            await cur.execute("SELECT * FROM changes_log WHERE product_id = ? ORDER BY created_at DESC", (product_id,))
+            changes = await cur.fetchall()
+            return {"product": product, "changes": changes}
+    except Exception as e:
+        logging.error(f"Error in get_product_details for product ID {product_id}: {e}", exc_info=True)
+        raise
 
-async def update_product_details(db_path: str, product_id: int, data: dict):
+async def update_product_details(db_path: str, product_id: int, **kwargs):
     async with aiosqlite.connect(db_path) as conn:
         cur = await conn.cursor()
-        # Assuming data contains title, body_html, etc.
-        # This is a simple example; you might want to be more specific about the fields
-        await cur.execute(
-            "UPDATE products SET title = ?, body_html = ? WHERE id = ?",
-            (data.get("title"), data.get("body_html"), product_id)
-        )
+        set_clauses = []
+        values = []
+        for key, value in kwargs.items():
+            set_clauses.append(f"{key} = ?")
+            values.append(value)
+        
+        if not set_clauses:
+            return # No fields to update
+
+        sql = f"UPDATE products SET {', '.join(set_clauses)} WHERE id = ?"
+        values.append(product_id)
+        
+        await cur.execute(sql, tuple(values))
         await conn.commit()
 
 async def get_change_log(db_path: str, limit=100):
@@ -59,6 +77,23 @@ async def get_change_log(db_path: str, limit=100):
             (limit,),
         )
         return await cur.fetchall()
+
+async def get_db_schema(db_path: str) -> dict:
+    try:
+        async with aiosqlite.connect(db_path) as conn:
+            cur = await conn.cursor()
+            await cur.execute("SELECT name FROM sqlite_master WHERE type='table';")
+            tables = [row[0] for row in await cur.fetchall()]
+            
+            schema = [] # Changed to list to match frontend expectation
+            for table_name in tables:
+                await cur.execute(f"PRAGMA table_info({table_name});")
+                columns = await cur.fetchall()
+                schema.append({'name': table_name, 'columns': [{'name': col[1], 'type': col[2]} for col in columns]})
+            return schema
+    except Exception as e:
+        logging.error(f"Error in get_db_schema: {e}", exc_info=True)
+        raise
 
 async def mark_as_reviewed(db_path: str, product_id: int):
     async with aiosqlite.connect(db_path) as conn:
@@ -74,21 +109,65 @@ async def log_change(db_path: str, pid, field, old, new, source):
         cur = await conn.cursor()
         await cur.execute(
             """
-            INSERT INTO changes_log (product_id, field, old, new, created_at, source, reviewed)
-            VALUES (?, ?, ?, ?, ?, ?, 0)
+            INSERT INTO changes_log (product_id, field, old, new, source, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (pid, field, old, new, datetime.datetime.utcnow().isoformat(), source),
+            (pid, field, json.dumps(old), json.dumps(new), source, datetime.datetime.now().isoformat()),
         )
         await conn.commit()
 
-async def update_product(db_path: str, pid, normalized_title, normalized_body, normalized_tags, final_category, model_name, confidence):
+async def update_database_schema(db_path: str):
+    """Update the database schema to include required columns if they don't exist."""
     async with aiosqlite.connect(db_path) as conn:
         cur = await conn.cursor()
-        await cur.execute(
-            """UPDATE products 
-               SET normalized_title = ?, normalized_body_html = ?, normalized_tags_json = ?, 
-                   gmc_category_label = ?, llm_model = ?, llm_confidence = ?
-               WHERE id = ?""",
-            (normalized_title, normalized_body, json.dumps(normalized_tags), final_category, model_name, confidence, pid)
-        )
+        
+        # Check if products table exists
+        await cur.execute("""
+            CREATE TABLE IF NOT EXISTS products (
+                id INTEGER PRIMARY KEY,
+                title TEXT,
+                body_html TEXT,
+                tags TEXT,
+                category TEXT,
+                normalized_title TEXT,
+                normalized_body_html TEXT,
+                llm_confidence REAL DEFAULT 0.0,
+                gmc_category_label TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Add any missing columns to products table
+        await cur.execute("PRAGMA table_info(products)")
+        columns = [col[1] for col in await cur.fetchall()]
+        
+        if 'normalized_title' not in columns:
+            await cur.execute("ALTER TABLE products ADD COLUMN normalized_title TEXT")
+        if 'normalized_body_html' not in columns:
+            await cur.execute("ALTER TABLE products ADD COLUMN normalized_body_html TEXT")
+        if 'llm_confidence' not in columns:
+            await cur.execute("ALTER TABLE products ADD COLUMN llm_confidence REAL DEFAULT 0.0")
+        if 'gmc_category_label' not in columns:
+            await cur.execute("ALTER TABLE products ADD COLUMN gmc_category_label TEXT")
+        if 'created_at' not in columns:
+            await cur.execute("ALTER TABLE products ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+        if 'updated_at' not in columns:
+            await cur.execute("ALTER TABLE products ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+        
+        # Create changes_log table if it doesn't exist
+        await cur.execute("""
+            CREATE TABLE IF NOT EXISTS changes_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_id INTEGER,
+                field TEXT,
+                old TEXT,
+                new TEXT,
+                source TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                reviewed BOOLEAN DEFAULT 0,
+                FOREIGN KEY (product_id) REFERENCES products(id)
+            )
+        """)
+        
         await conn.commit()

@@ -1,10 +1,39 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict, YamlConfigSettingsSource
 from pydantic import BaseModel
-from typing import ClassVar, List
+from typing import ClassVar, List, Dict, Any
+from enum import Enum
+
+class TaskType(Enum):
+    META_OPTIMIZATION = "meta_optimization"
+    CONTENT_REWRITING = "content_rewriting" 
+    KEYWORD_ANALYSIS = "keyword_analysis"
+    SCHEMA_ANALYSIS = "schema_analysis"
+
+class ModelConfig(BaseModel):
+    tasks: List[TaskType]
+    description: str
+    max_tokens: int
+
+class ModelCapabilities(BaseModel):
+    capabilities: Dict[str, ModelConfig]
+    fallback_order: List[str]
+
+import os
 
 class Ollama(BaseModel):
-    host: str = "http://localhost"
+    host: str = os.getenv("OLLAMA_HOST", "http://localhost").rstrip('/')
     port: int = 11434
+    
+    @property
+    def base_url(self) -> str:
+        # If host already includes port, return as is
+        if ':' in self.host.split('//')[-1]:
+            return self.host
+        return f"{self.host}:{self.port}"
+        
+    @property
+    def api_url(self) -> str:
+        return f"{self.base_url}/api"
 
 class Models(BaseModel):
     title_model: str
@@ -38,6 +67,7 @@ class Settings(BaseSettings):
     categories: Categories
     fields: Fields
     pipeline: Pipeline
+    model_capabilities: ModelCapabilities
 
     model_config = SettingsConfigDict(yaml_file="config.yaml")
 

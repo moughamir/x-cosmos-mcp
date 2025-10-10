@@ -1,5 +1,6 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
+import { Router } from '@vaadin/router';
 
 interface Product {
   id: number;
@@ -14,6 +15,17 @@ export class ProductList extends LitElement {
     :host {
       display: block;
     }
+    .view-button {
+      background-color: #3B82F6; /* blue-500 */
+      color: white;
+      font-weight: bold;
+      padding: 0.5rem 1rem;
+      border-radius: 0.25rem;
+      transition: background-color 0.2s;
+    }
+    .view-button:hover {
+      background-color: #2563EB; /* blue-700 */
+    }
   `;
 
   @state()
@@ -27,6 +39,10 @@ export class ProductList extends LitElement {
     } catch (error) {
       console.error('Error fetching products:', error);
     }
+  }
+
+  navigateToProductDetail(productId: number) {
+    Router.go(`/products/${productId}`);
   }
 
   render() {
@@ -52,7 +68,10 @@ export class ProductList extends LitElement {
                   <td class="py-2 px-4 border-b">${product.llm_confidence.toFixed(2)}</td>
                   <td class="py-2 px-4 border-b">${product.gmc_category_label}</td>
                   <td class="py-2 px-4 border-b">
-                    <button class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">View</button>
+                    <button 
+                      @click="${() => this.navigateToProductDetail(product.id)}"
+                      class="view-button"
+                    >View</button>
                   </td>
                 </tr>
               `

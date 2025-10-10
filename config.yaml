@@ -33,3 +33,27 @@ pipeline:
     - validate
     - review_queue
 
+model_capabilities:
+  capabilities:
+    llama3.2:1b-instruct-q4_K_M:
+      tasks:
+        - meta_optimization
+        - keyword_analysis
+      description: Fast meta tags and keyword analysis
+      max_tokens: 512
+    gemma3:1b-it-qat:
+      tasks:
+        - content_rewriting
+        - meta_optimization
+      description: Content rewriting and SEO optimization
+      max_tokens: 1024
+    qwen2:1.5b:
+      tasks:
+        - schema_analysis
+        - keyword_analysis
+      description: Schema analysis and complex keyword tasks
+      max_tokens: 2048
+  fallback_order:
+    - qwen2:1.5b
+    - gemma3:1b-it-qat
+    - llama3.2:1b-instruct-q4_K_M

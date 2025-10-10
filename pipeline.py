@@ -1,195 +1,348 @@
-#!/usr/bin/env python3
-"""
-Master Copy Pipeline (MCP) - Refactored
-"""
-
 import json
-import asyncio
 import re
-import csv
-from pathlib import Path
-from utils.db import get_products_batch, log_change, update_product
-from utils.db_migrate import migrate_schema
-from utils.ollama_client import OllamaClient
-from jinja2 import Template
-from rapidfuzz import process, fuzz
-from config import settings
+import time
+import logging
+from typing import Dict, List, Any, Optional
+from enum import Enum
+import requests
+from bs4 import BeautifulSoup
 
-# --- Configuration ---
-MIN_MATCH_SCORE = 72
-LOW_CONFIDENCE_THRESHOLD = 0.65
+from config import settings, TaskType # Import settings and TaskType from config
+import aiosqlite
+from utils.db import log_change, update_product_details
 
-# --- Helper Functions ---
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
-def load_taxonomy_from_url(url=settings.categories.taxonomy_url):
-    import requests
-
-    try:
-        r = requests.get(url, timeout=30)
-        r.raise_for_status()
-        return [line.strip() for line in r.text.splitlines() if line.strip()]
-    except requests.RequestException as e:
-        print(f"Error fetching taxonomy: {e}")
-        return []
-
-def prepare_prompt(product, template_file):
-    """Renders a prompt from a Jinja2 template."""
-    template = Template((Path(settings.paths.prompt_dir) / template_file).read_text())
-    return template.render(product=product)
-
-def parse_response_to_json(resp_text):
-    """Extracts a JSON object from the model's response."""
-    try:
-        match = re.search(r"\{.*\}", resp_text, re.S)
-        if match:
-            return json.loads(match.group(1))
-        return None
-    except (json.JSONDecodeError, AttributeError) as e:
-        print(f"JSON parse error: {e}")
-        return None
-
-def map_to_taxonomy(candidate_label, taxonomy_list):
-    """Finds the best matching taxonomy label for a candidate label."""
-    if not candidate_label or not taxonomy_list:
-        return None, 0
-    choice, score, _ = process.extractOne(
-        candidate_label, taxonomy_list, scorer=fuzz.WRatio
-    ) or (None, 0, None)
-    return choice, score
-
-
-# --- Pipeline Steps ---
-
-
-async def process_product(
-    product: dict, title_client: OllamaClient, desc_client: OllamaClient, taxonomy: list
-):
-    """Processes a single product to generate normalized data."""
-    # Generate title
-    title_prompt = prepare_prompt(product, "normalize_product.j2")
-    normalized_title_raw = await asyncio.to_thread(
-        title_client.get_response, title_prompt
-    )
-
-    # Generate description and other fields
-    desc_prompt = prepare_prompt(product, "rewrite_description.j2")
-    desc_response_raw = await asyncio.to_thread(desc_client.get_response, desc_prompt)
-    enriched_data = parse_response_to_json(desc_response_raw)
-
-    if not enriched_data:
-        print(f"Could not parse response for product {product['id']}")
-        return None
-
-    # Validate and extract data
-    normalized_title = normalized_title_raw if normalized_title_raw else product["title"]
-    normalized_body = enriched_data.get("body_html", product["body_html"])
-    normalized_tags = enriched_data.get("tags", [])
-    category_suggest = enriched_data.get("category")
-    confidence = float(enriched_data.get("confidence", 0.0))
-
-    # Map to taxonomy
-    mapped_category, tax_score = map_to_taxonomy(category_suggest, taxonomy)
-    final_category = mapped_category if tax_score >= MIN_MATCH_SCORE else None
-
-    # Update database
-    await update_product(
-        settings.paths.database,
-        product["id"],
-        normalized_title,
-        normalized_body,
-        normalized_tags,
-        final_category,
-        desc_client.model_name,
-        confidence,
-    )
-
-    # Log changes
-    await log_change(
-        settings.paths.database,
-        product["id"],
-        "title",
-        product["title"],
-        normalized_title,
-        title_client.model_name,
-    )
-    await log_change(
-        settings.paths.database,
-        product["id"],
-        "body_html",
-        product["body_html"],
-        normalized_body,
-        desc_client.model_name,
-    )
-
-    # Return data for review queue
-    if confidence < LOW_CONFIDENCE_THRESHOLD or (
-        category_suggest and tax_score < MIN_MATCH_SCORE
-    ):
-        return {
-            "product_id": product["id"],
-            "original_title": product["title"],
-            "suggested_title": normalized_title,
-            "suggested_category": category_suggest,
-            "mapped_category": final_category,
-            "confidence": confidence,
-            "taxonomy_score": tax_score,
-        }
-    return None
-
-
-async def main():
-    """Main pipeline execution function."""
-    # Setup
-    await migrate_schema(settings.paths.database)
-    taxonomy = load_taxonomy_from_url()
-
-    if not taxonomy:
-        print("Could not load taxonomy. Exiting.")
-        return
-
-    title_client = OllamaClient(
-        model_name=settings.models.title_model,
-        host=settings.ollama.host,
-        port=settings.ollama.port,
-    )
-    desc_client = OllamaClient(
-        model_name=settings.models.description_model,
-        host=settings.ollama.host,
-        port=settings.ollama.port,
-    )
-
-    low_confidence_products = []
-    offset = 0
-
-    while True:
-        batch = await get_products_batch(settings.paths.database, limit=settings.models.batch_size)
-
-        if not batch:
-            print("No more products to process.")
-            break
-
-        tasks = [
-            process_product(dict(p), title_client, desc_client, taxonomy) for p in batch
-        ]
-        results = await asyncio.gather(*tasks)
-
-        for result in results:
-            if result:
-                low_confidence_products.append(result)
-
-        offset += len(batch)
-        print(f"Processed batch of {len(batch)}. Total processed: {offset}")
-
-    # Write low-confidence products to CSV
-    if low_confidence_products:
-        with open("low_confidence_review.csv", "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=low_confidence_products[0].keys())
-            writer.writeheader()
-            writer.writerows(low_confidence_products)
-        print(
-            f"Wrote {len(low_confidence_products)} products to low_confidence_review.csv"
+class MultiModelSEOManager:
+    def __init__(self):
+        self.db_path = settings.paths.database
+        self.ollama_url = f"{settings.ollama.host}:{settings.ollama.port}"
+        self.model_capabilities = settings.model_capabilities.capabilities
+        self.fallback_order = settings.model_capabilities.fallback_order
+    
+    async def get_best_model_for_task(self, task_type: TaskType) -> str:
+        """Select the best available model for a specific task"""
+        for model_name, capabilities in self.model_capabilities.items():
+            if task_type in capabilities.tasks:
+                if await self._check_model_availability(model_name):
+                    return model_name
+        
+        # Fallback to any available model
+        for model_name in self.fallback_order:
+            if await self._check_model_availability(model_name):
+                return model_name
+                
+        raise Exception("No models available")
+    
+    async def _check_model_availability(self, model_name: str) -> bool:
+        """Check if a model is available in Ollama"""
+        try:
+            response = requests.post(
+                f"{self.ollama_url}/api/generate",
+                json={"model": model_name, "prompt": "test", "stream": False},
+                timeout=10
+            )
+            return response.status_code == 200
+        except:
+            return False
+    
+    async def optimize_meta_tags(self, product_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Optimize meta title and description using specialized model"""
+        model = await self.get_best_model_for_task(TaskType.META_OPTIMIZATION)
+        
+        prompt = f"""
+        OPTIMIZE META TAGS FOR SEO:
+        
+        Product: {product_data.get('title', '')}
+        Type: {product_data.get('product_type', '')}
+        Current Description: {self._clean_html(product_data.get('body_html', ''))[:500]}
+        
+        Generate:
+        1. SEO-optimized meta title (55-60 characters)
+        2. Compelling meta description (150-160 characters) 
+        3. 5-8 relevant keywords
+        
+        Respond in JSON format:
+        {{
+            "meta_title": "optimized title",
+            "meta_description": "optimized description",
+            "seo_keywords": "keyword1, keyword2, keyword3"
+        }}
+        """
+        
+        return await self._call_model_with_fallback(model, prompt, task_type=TaskType.META_OPTIMIZATION)
+    
+    async def rewrite_content(self, product_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Rewrite product content for better SEO"""
+        model = await self.get_best_model_for_task(TaskType.CONTENT_REWRITING)
+        
+        prompt = f"""
+        REWRITE PRODUCT CONTENT FOR SEO:
+        
+        Original Title: {product_data.get('title', '')}
+        Original Description: {self._clean_html(product_data.get('body_html', ''))}
+        
+        Create an SEO-optimized version that:
+        - Includes primary keywords naturally
+        - Uses compelling, engaging language
+        - Maintains all technical specifications
+        - Improves readability and scannability
+        
+        Respond with JSON:
+        {{
+            "optimized_title": "rewritten title",
+            "optimized_description": "rewritten HTML description",
+            "content_score": 0.85,
+            "improvements": ["improvement1", "improvement2"]
+        }}
+        """
+        
+        return await self._call_model_with_fallback(model, prompt, task_type=TaskType.CONTENT_REWRITING)
+    
+    async def analyze_keywords(self, product_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Perform comprehensive keyword analysis"""
+        model = await self.get_best_model_for_task(TaskType.KEYWORD_ANALYSIS)
+        
+        prompt = f"""
+        ANALYZE KEYWORDS FOR PRODUCT:
+        
+        Product: {product_data.get('title', '')}
+        Description: {self._clean_html(product_data.get('body_html', ''))[:800]}
+        Current Tags: {product_data.get('tags', '')}
+        
+        Provide comprehensive keyword analysis:
+        - Primary keywords (high search volume)
+        - Secondary keywords (long-tail)
+        - Competitor keywords
+        - Keyword difficulty assessment
+        
+        JSON Response:
+        {{
+            "primary_keywords": ["kw1", "kw2"],
+            "long_tail_keywords": ["long tail1", "long tail2"],
+            "competitor_terms": ["comp1", "comp2"],
+            "difficulty_estimate": "low/medium/high"
+        }}
+        """
+        
+        return await self._call_model_with_fallback(model, prompt, task_type=TaskType.KEYWORD_ANALYSIS)
+    
+    async def _call_model_with_fallback(self, model: str, prompt: str, task_type: TaskType, max_retries: int = 3) -> Dict[str, Any]:
+        """Call model with fallback to other models if needed"""
+        for attempt in range(max_retries):
+            current_model = model
+            try:
+                result = await self._call_ollama_model(current_model, prompt)
+                if result and self._validate_response(result, task_type):
+                    logger.info(f"✅ Success with {current_model} for {task_type.value}")
+                    return result
+                    
+            except Exception as e:
+                logger.warning(f"Attempt {attempt + 1} failed with {current_model}: {e}")
+            
+            # Try next model in fallback order
+            next_models = [m for m in self.fallback_order if m != current_model]
+            if next_models:
+                model = next_models[0]
+            else:
+                break
+        
+        # Final fallback to rule-based generation
+        return self._rule_based_fallback(task_type, prompt)
+    
+    async def _call_ollama_model(self, model: str, prompt: str) -> Dict[str, Any]:
+        """Make actual call to Ollama model"""
+        capabilities = self.model_capabilities.get(model, {"max_tokens": 1024})
+        
+        response = requests.post(
+            f"{self.ollama_url}/api/generate",
+            json={
+                "model": model,
+                "prompt": prompt,
+                "stream": False,
+                "options": {
+                    "temperature": 0.3,
+                    "top_p": 0.9,
+                    "num_predict": capabilities.max_tokens
+                }
+            },
+            timeout=120
         )
+        
+        if response.status_code == 200: 
+            result = response.json()
+            return self._parse_model_response(result['response'])
+        else:
+            raise Exception(f"Model API error: {response.status_code}")
+    
+    def _parse_model_response(self, response: str) -> Dict[str, Any]:
+        """Parse model response with robust error handling"""
+        try:
+            # Try to extract JSON from response
+            json_match = re.search(r'\{.*\}', response, re.DOTALL)
+            if json_match:
+                return json.loads(json_match.group())
+        except:
+            pass
+        
+        # Fallback: return raw response
+        return {"raw_response": response, "error": "JSON parsing failed"}
+    
+    def _validate_response(self, response: Dict[str, Any], task_type: TaskType) -> bool:
+        """Validate that response contains required fields"""
+        required_fields = {
+            TaskType.META_OPTIMIZATION: ['meta_title', 'meta_description', 'seo_keywords'],
+            TaskType.CONTENT_REWRITING: ['optimized_title', 'optimized_description'],
+            TaskType.KEYWORD_ANALYSIS: ['primary_keywords', 'long_tail_keywords']
+        }
+        
+        required = required_fields.get(task_type, [])
+        return all(field in response for field in required)
+    
+    def _rule_based_fallback(self, task_type: TaskType, prompt: str) -> Dict[str, Any]:
+        """Provide rule-based fallback when models fail"""
+        if task_type == TaskType.META_OPTIMIZATION:
+            return {
+                "meta_title": "Optimized Product",
+                "meta_description": "Quality product with excellent features and competitive pricing.",
+                "seo_keywords": "product, quality, features, buy",
+                "fallback_used": True
+            }
+        elif task_type == TaskType.CONTENT_REWRITING:
+            return {
+                "optimized_title": "Enhanced Product Version",
+                "optimized_description": "<p>Improved product description with better features.</p>",
+                "content_score": 0.5,
+                "improvements": ["Basic content optimization applied"],
+                "fallback_used": True
+            }
+        else:  # KEYWORD_ANALYSIS
+            return {
+                "primary_keywords": ["product", "features"],
+                "long_tail_keywords": ["quality product features"],
+                "competitor_terms": ["similar products"],
+                "difficulty_estimate": "medium",
+                "fallback_used": True
+            }
+    
+    def _clean_html(self, html_content: str) -> str:
+        """Clean HTML tags from content"""
+        if not html_content:
+            return ""
+        soup = BeautifulSoup(html_content, 'html.parser')
+        return soup.get_text().strip()
+    
+    async def batch_process_products(self, product_ids: List[int], task_type: TaskType):
+        """Process multiple products with the appropriate model"""
+        async with aiosqlite.connect(self.db_path) as conn:
+            conn.row_factory = aiosqlite.Row
+            cursor = await conn.cursor()
+            
+            results = []
+            for product_id in product_ids:
+                await cursor.execute(
+                    "SELECT id, title, body_html, product_type, tags FROM products WHERE id = ?",
+                    (product_id,)
+                )
+                product = await cursor.fetchone()
+                
+                if product:
+                    product_id, title, body_html, product_type, tags = product
+                    product_data = {
+                        'id': product_id,
+                        'title': title,
+                        'body_html': body_html,
+                        'product_type': product_type,
+                        'tags': tags
+                    }
+                    
+                    try:
+                        if task_type == TaskType.META_OPTIMIZATION:
+                            result = await self.optimize_meta_tags(product_data)
+                        elif task_type == TaskType.CONTENT_REWRITING:
+                            result = await self.rewrite_content(product_data)
+                        elif task_type == TaskType.KEYWORD_ANALYSIS:
+                            result = await self.analyze_keywords(product_data)
+                        
+                        result['product_id'] = product_id
+                        result['model_used'] = await self.get_best_model_for_task(task_type)
+                        results.append(result)
+                        
+                        logger.info(f"Processed product {product_id} with {result['model_used']}")
+                        
+                        # Update product in DB and log change
+                        await update_product_details(
+                            self.db_path,
+                            product_id,
+                            title=result.get('meta_title', product_data['title']),
+                            body_html=result.get('optimized_description', product_data['body_html'])
+                        )
+                        await log_change(
+                            self.db_path,
+                            product_id,
+                            field=task_type.value,
+                            old="", # TODO: Capture old values
+                            new=json.dumps(result),
+                            source=result['model_used']
+                        )
+                        
+                    except Exception as e:
+                        logger.error(f"Failed to process product {product_id}: {e}")
+                        results.append({
+                            'product_id': product_id,
+                            'error': str(e),
+                            'fallback_used': True
+                        })
+            
+            return results
 
+# Usage example and CLI interface
+async def main():
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Multi-Model SEO Optimizer')
+    parser.add_argument('--db-path', required=False, help='Database file path') # db_path is now from settings
+    parser.add_argument('--task', choices=['meta', 'content', 'keywords'], required=True)
+    parser.add_argument('--product-ids', type=int, nargs='+', help='Specific product IDs to process')
+    
+    args = parser.parse_args()
+    
+    # Initialize multi-model manager
+    manager = MultiModelSEOManager()
+    
+    # Map task types
+    task_mapping = {
+        'meta': TaskType.META_OPTIMIZATION,
+        'content': TaskType.CONTENT_REWRITING, 
+        'keywords': TaskType.KEYWORD_ANALYSIS
+    }
+    
+    task_type = task_mapping[args.task]
+    
+    # Get product IDs to process
+    if args.product_ids:
+        product_ids = args.product_ids
+    else:
+        async with aiosqlite.connect(manager.db_path) as conn:
+            cursor = await conn.cursor()
+            await cursor.execute("SELECT id FROM products LIMIT 10")
+            product_ids = [row[0] for row in await cursor.fetchall()]
+    
+    print(f"🚀 Starting {task_type.value} for {len(product_ids)} products...")
+    
+    # Process products
+    results = await manager.batch_process_products(product_ids, task_type)
+    
+    # Print results
+    print(f"✅ Processed {len([r for r in results if 'error' not in r])} products successfully")
+    print(f"❌ Failed {len([r for r in results if 'error' in r])} products")
+    
+    for result in results:
+        if 'error' not in result:
+            print(f"Product {result['product_id']}: {result.get('meta_title', result.get('optimized_title', 'Unknown'))}")
 
 if __name__ == "__main__":
+    import asyncio
     asyncio.run(main())

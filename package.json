@@ -1,8 +1,13 @@
 {
+  "$schema": "https://json.schemastore.org/package.json",
   "name": "mcp-admin",
   "version": "1.0.0",
   "description": "Admin UI for MCP",
   "scripts": {
+    "docker:upbuild": "docker compose up --build",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:downvolumes": "docker compose down --volumes",
     "build:css": "tailwindcss -i ./admin/static/css/tailwind.css -o ./admin/static/css/styles.css",
     "build:js": "esbuild ./admin/static/js/main.ts --bundle --outfile=./admin/static/js/main.js --format=esm",
     "build": "npm run build:css && npm run build:js"
@@ -13,6 +18,7 @@
     "esbuild": "^0.19.11"
   },
   "dependencies": {
-    "lit": "^3.1.0"
+    "lit": "^3.1.0",
+    "@vaadin/router": "^1.7.5"
   }
 }
