@@ -181,7 +181,7 @@ class MultiModelSEOManager:
                     "num_predict": capabilities.get("max_tokens", 1024)
                 }
             },
-            timeout=60  # Reduced from 120 to 60 seconds for faster failure
+            timeout=120  # Increased from 60 to 120 seconds for potentially longer inference
         )
         
         if response.status_code == 200: 
@@ -341,7 +341,7 @@ async def main():
         async with aiosqlite.connect(manager.db_path) as conn:
             cursor = await conn.cursor()
             await cursor.execute("SELECT id FROM products LIMIT 10")
-            product_ids = [row[0] for row in await cursor.fetchall()]
+            product_ids = [row['id'] for row in await cursor.fetchall()]
     
     print(f"🚀 Starting {task_type.value} for {len(product_ids)} products...")
     
