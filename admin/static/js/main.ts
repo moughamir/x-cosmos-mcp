@@ -9,6 +9,7 @@ import "./components/pipeline-management";
 import "./components/product-detail";
 import "./components/product-list";
 import "./components/change-log";
+import "./components/pipeline-progress";
 
 @customElement("mcp-admin")
 export class McpAdmin extends LitElement {
@@ -69,6 +70,7 @@ export class McpAdmin extends LitElement {
 			{ path: "/pipeline", component: "pipeline-management" },
 			{ path: "/database", component: "db-management" },
 			{ path: "/changes", component: "change-log" },
+			{ path: "/pipeline-progress", component: "pipeline-progress" },
 		]);
 	}
 
@@ -82,6 +84,7 @@ export class McpAdmin extends LitElement {
           <a href="/pipeline" class="nav-link">Pipeline</a>
           <a href="/database" class="nav-link">Database</a>
           <a href="/changes" class="nav-link">Changes</a>
+          <a href="/pipeline-progress" class="nav-link">Progress</a>
         </nav>
       </header>
       <main class="main-content">

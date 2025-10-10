@@ -255,14 +255,18 @@ class MultiModelSEOManager:
     
     async def batch_process_products(self, product_ids: List[int], task_type: TaskType):
         """Process multiple products with the appropriate model"""
-        async with aiosqlite.connect(self.db_path) as conn:
-            conn.row_factory = aiosqlite.Row
-            cursor = await conn.cursor()
+        processed_count = 0
+        failed_count = 0
+        pipeline_run_id = None
+
+        try:
+            pipeline_run_id = await create_pipeline_run(self.db_path, task_type.value, len(product_ids))
             
             results = []
             
             if task_type == TaskType.CATEGORY_NORMALIZATION:
                 await self._normalize_categories_for_products(product_ids=product_ids)
+                processed_count = len(product_ids)
                 for product_id in product_ids:
                     results.append({'product_id': product_id, 'status': 'Category normalized'})
                 return results
@@ -295,6 +299,7 @@ class MultiModelSEOManager:
                         result['product_id'] = product_id
                         result['model_used'] = await self.get_best_model_for_task(task_type)
                         results.append(result)
+                        processed_count += 1
                         
                         logger.info(f"Processed product {product_id} with {result['model_used']}")
                         
@@ -316,13 +321,21 @@ class MultiModelSEOManager:
                         
                     except Exception as e:
                         logger.error(f"Failed to process product {product_id}: {e}")
+                        failed_count += 1
                         results.append({
                             'product_id': product_id,
                             'error': str(e),
                             'fallback_used': True
                         })
+                
+                if pipeline_run_id:
+                    await update_pipeline_run(self.db_path, pipeline_run_id, processed_products=processed_count, failed_products=failed_count)
             
             return results
+        finally:
+            if pipeline_run_id:
+                status = "COMPLETED" if failed_count == 0 else "FAILED"
+                await complete_pipeline_run(self.db_path, pipeline_run_id, status, processed_count, failed_count)
 
 # Usage example and CLI interface
 async def main():
