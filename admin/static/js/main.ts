@@ -11,6 +11,7 @@ import "./components/product-list";
 import "./components/change-log";
 import "./components/pipeline-progress";
 import "./components/taxonomy-browser";
+import "./components/prompt-management";
 
 @customElement("mcp-admin")
 export class McpAdmin extends LitElement {
@@ -73,6 +74,7 @@ export class McpAdmin extends LitElement {
 			{ path: "/changes", component: "change-log" },
 			{ path: "/pipeline-progress", component: "pipeline-progress" },
 			{ path: "/taxonomy", component: "taxonomy-browser" },
+			{ path: "/prompts", component: "prompt-management" },
 		]);
 	}
 
@@ -88,6 +90,7 @@ export class McpAdmin extends LitElement {
           <a href="/changes" class="nav-link">Changes</a>
           <a href="/pipeline-progress" class="nav-link">Progress</a>
           <a href="/taxonomy" class="nav-link">Taxonomy</a>
+          <a href="/prompts" class="nav-link">Prompts</a>
         </nav>
       </header>
       <main class="main-content">

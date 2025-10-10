@@ -36,6 +36,10 @@ async def lifespan(app: FastAPI):
         await update_database_schema(settings.paths.database)
         logging.info("Database schema updated successfully")
 
+        # Run migrations for additional tables (e.g., pipeline_runs)
+        await migrate_schema(settings.paths.database)
+        logging.info("Database migrations applied successfully")
+
         # Test database connection by fetching products
         products = await get_all_products(settings.paths.database)
         logging.info(f"Database connection successful. Found {len(products)} products.")
@@ -168,6 +172,32 @@ async def get_top_level_taxonomy_endpoint():
         return top_level_categories
     except Exception as e:
         logging.error(f"Error fetching top-level taxonomy categories: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+@app.get("/api/prompts")
+async def list_prompts():
+    try:
+        prompt_dir = settings.paths.prompt_dir
+        prompt_files = [f for f in os.listdir(prompt_dir) if f.endswith(".j2")]
+        return {"prompts": prompt_files}
+    except Exception as e:
+        logging.error(f"Error listing prompt files: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+@app.get("/api/prompts/{prompt_name}")
+async def get_prompt_content(prompt_name: str):
+    try:
+        prompt_path = os.path.join(settings.paths.prompt_dir, prompt_name)
+        if not os.path.exists(prompt_path) or not prompt_path.endswith(".j2"):
+            raise HTTPException(status_code=404, detail="Prompt not found")
+        
+        with open(prompt_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        return {"name": prompt_name, "content": content}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logging.error(f"Error fetching prompt content for {prompt_name}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 @app.get("/api/db/schema")
