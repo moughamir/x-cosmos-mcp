@@ -19,6 +19,8 @@ async def migrate_schema(db_path: str):
             ("gmc_category_label", "TEXT"),
             ("llm_model", "TEXT"),
             ("llm_confidence", "REAL"),
+            ("normalized_category", "TEXT"),
+            ("category_confidence", "REAL"),
         ]
 
         for col_name, col_type in columns_to_add:

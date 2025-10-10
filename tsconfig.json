@@ -2,8 +2,11 @@
   "compilerOptions": {
     "target": "es2020",
     "module": "es2020",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": false,
     "strict": true,
     "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "experimentalDecorators": true,
@@ -11,5 +14,6 @@
     "outDir": "./admin/static/js",
     "rootDir": "./admin/static/js"
   },
-  "include": ["./admin/static/js/**/*.ts"]
+  "include": ["./admin/static/js/**/*"],
+  "exclude": ["node_modules", "**/*.js"]
 }

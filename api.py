@@ -3,6 +3,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from typing import List, Optional
+from contextlib import asynccontextmanager
 import logging
 import os
 import sys
@@ -12,19 +13,42 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 # Import after path setup
+# Database and utility imports
 from utils.db import (
     get_all_products, get_product_details, update_product_details,
-    get_products_for_review, mark_as_reviewed, get_change_log, update_database_schema
+    get_products_for_review, mark_as_reviewed, get_change_log, update_database_schema, get_db_schema
 )
+from utils.db_migrate import migrate_schema
 from utils.ollama_manager import list_ollama_models, pull_ollama_model
+from pipeline import MultiModelSEOManager
 from config import settings, TaskType
 import asyncio
 import aiohttp
+import aiosqlite
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# Lifespan event handler for startup and shutdown events
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    try:
+        # Update database schema
+        await update_database_schema(settings.paths.database)
+        logging.info("Database schema updated successfully")
 
-app = FastAPI()
+        # Test database connection by fetching products
+        products = await get_all_products(settings.paths.database)
+        logging.info(f"Database connection successful. Found {len(products)} products.")
+    except Exception as e:
+        logging.error(f"Startup error: {e}", exc_info=True)
+        raise
+
+    yield  # App runs here
+
+    # Shutdown (if needed)
+    # Add any cleanup logic here
+
+# Initialize FastAPI app with lifespan
+app = FastAPI(lifespan=lifespan)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="admin/static"), name="static")
@@ -52,21 +76,6 @@ class PipelineRunRequest(BaseModel):
     task_type: TaskType
     product_ids: Optional[List[int]] = None
 
-# Initialize database on startup
-@app.on_event("startup")
-async def startup_event():
-    try:
-        # Update database schema
-        await update_database_schema(settings.paths.database)
-        logging.info("Database schema updated successfully")
-        
-        # Test database connection by fetching products
-        await get_all_products(settings.paths.database)
-        logging.info("Database connection test successful")
-    except Exception as e:
-        logging.error(f"Startup error: {e}", exc_info=True)
-        raise
-
 @app.get("/api/products")
 async def get_products():
     try:
@@ -91,7 +100,7 @@ async def get_product(product_id: int):
 
 @app.put("/api/products/{product_id}")
 async def update_product(product_id: int, product_update: ProductUpdate):
-    await update_product_details(settings.paths.database, product_id, **product_update.dict())
+    await update_product_details(settings.paths.database, product_id, **product_update.model_dump())
     return {"status": "success"}
 
 @app.get("/api/products/review")
@@ -124,10 +133,8 @@ async def run_pipeline(request: PipelineRunRequest):
     manager = MultiModelSEOManager()
     if not request.product_ids:
         # Fetch all product IDs if none are specified
-        async with aiosqlite.connect(manager.db_path) as conn:
-            cursor = await conn.cursor()
-            await cursor.execute("SELECT id FROM products")
-            product_ids = [row[0] for row in await cursor.fetchall()]
+        products = await get_all_products(settings.paths.database)
+        product_ids = [product['id'] for product in products]
     else:
         product_ids = request.product_ids
 

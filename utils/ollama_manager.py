@@ -2,12 +2,13 @@ import requests
 from typing import List, Dict, Any
 from config import settings
 
-OLLAMA_URL = f"{settings.ollama.host}:{settings.ollama.port}"
+# Use the proper base_url property from Ollama config
+OLLAMA_BASE_URL = settings.ollama.base_url.rstrip('/')
 
 async def list_ollama_models() -> List[Dict[str, Any]]:
     """Lists available Ollama models."""
     try:
-        response = requests.get(f"{OLLAMA_URL}/api/tags", timeout=10)
+        response = requests.get(f"{OLLAMA_BASE_URL}/api/tags", timeout=10)
         response.raise_for_status()
         return response.json().get("models", [])
     except requests.exceptions.RequestException as e:
@@ -18,12 +19,12 @@ async def pull_ollama_model(model_name: str) -> Dict[str, Any]:
     """Pulls a specific Ollama model."""
     try:
         response = requests.post(
-            f"{OLLAMA_URL}/api/pull",
+            f"{OLLAMA_BASE_URL}/api/pull",
             json={
                 "name": model_name,
                 "stream": False # Set to True for streaming output
             },
-            timeout=300 # Increased timeout for model pulls
+            timeout=500
         )
         response.raise_for_status()
         return response.json()

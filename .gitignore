@@ -25,3 +25,5 @@ admin/static/css/styles.css
 # Logs
 *.log
 *.csv
+products.sqlite-shm
+products.sqlite-wal

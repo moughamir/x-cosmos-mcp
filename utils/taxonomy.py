@@ -14,7 +14,7 @@ def load_taxonomy():
             return json.load(f)
 
     print("Downloading Google Product Taxonomy...")
-    r = requests.get(TAXONOMY_URL, timeout=10)
+    r = requests.get(TAXONOMY_URL, timeout=500)
     r.raise_for_status()
     categories = [
         line.strip()
