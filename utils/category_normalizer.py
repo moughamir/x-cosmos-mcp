@@ -1,5 +1,6 @@
 import aiosqlite
 import logging
+from typing import Optional, List
 from utils.taxonomy import load_taxonomy, find_best_category
 from utils.db import update_product_details
 

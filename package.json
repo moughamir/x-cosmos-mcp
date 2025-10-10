@@ -5,7 +5,7 @@
   "description": "Admin UI for MCP",
   "scripts": {
     "docker:upbuild": "docker compose up --build",
-    "docker:up": "docker compose up -d",
+    "docker:up": "docker compose up ",
     "docker:down": "docker compose down",
     "docker:downvolumes": "docker compose down --volumes",
     "build:css": "tailwindcss -i ./admin/static/css/tailwind.css -o ./admin/static/css/styles.css",
