@@ -180,6 +180,8 @@ class MultiModelSEOManager:
         return await self._call_model_with_fallback(model, prompt, task_type=TaskType.TAG_OPTIMIZATION)
     
     async def _call_model_with_fallback(self, model: str, prompt: str, task_type: TaskType, max_retries: int = 3) -> Dict[str, Any]:
+        """Call model with fallback to other models if needed"""
+        for attempt in range(max_retries):
             current_model = model
             try:
                 result = await self._call_ollama_model(current_model, prompt)
@@ -247,7 +249,8 @@ class MultiModelSEOManager:
         required_fields = {
             TaskType.META_OPTIMIZATION: ['meta_title', 'meta_description', 'seo_keywords'],
             TaskType.CONTENT_REWRITING: ['optimized_title', 'optimized_description'],
-            TaskType.KEYWORD_ANALYSIS: ['primary_keywords', 'long_tail_keywords']
+            TaskType.KEYWORD_ANALYSIS: ['primary_keywords', 'long_tail_keywords'],
+            TaskType.TAG_OPTIMIZATION: ['optimized_tags', 'removed_tags', 'added_tags']
         }
         
         required = required_fields.get(task_type, [])
@@ -270,12 +273,13 @@ class MultiModelSEOManager:
                 "improvements": ["Basic content optimization applied"],
                 "fallback_used": True
             }
-        else:  # KEYWORD_ANALYSIS
+            }
+        elif task_type == TaskType.TAG_OPTIMIZATION:
             return {
-                "primary_keywords": ["product", "features"],
-                "long_tail_keywords": ["quality product features"],
-                "competitor_terms": ["similar products"],
-                "difficulty_estimate": "medium",
+                "optimized_tags": "product, quality, features",
+                "removed_tags": ["old_irrelevant_tag"],
+                "added_tags": ["new_relevant_tag"],
+                "tag_analysis": "Basic tag optimization applied",
                 "fallback_used": True
             }
     
@@ -333,6 +337,8 @@ class MultiModelSEOManager:
                             result = await self.rewrite_content(product_data)
                         elif task_type == TaskType.KEYWORD_ANALYSIS:
                             result = await self.analyze_keywords(product_data)
+                        elif task_type == TaskType.TAG_OPTIMIZATION:
+                            result = await self.optimize_tags(product_data)
                         
                         result['product_id'] = product_id
                         result['model_used'] = await self.get_best_model_for_task(task_type)
@@ -345,8 +351,9 @@ class MultiModelSEOManager:
                         await update_product_details(
                             self.db_path,
                             product_id,
-                            title=result.get('meta_title', product_data['title']),
-                            body_html=result.get('optimized_description', product_data['body_html'])
+                            title=result.get('meta_title', result.get('optimized_title', product_data['title'])),
+                            body_html=result.get('optimized_description', product_data['body_html']),
+                            tags=result.get('optimized_tags', product_data['tags'])
                         )
                         await log_change(
                             self.db_path,
@@ -381,7 +388,7 @@ async def main():
     
     parser = argparse.ArgumentParser(description='Multi-Model SEO Optimizer')
     parser.add_argument('--db-path', required=False, help='Database file path') # db_path is now from settings
-    parser.add_argument('--task', choices=['meta', 'content', 'keywords'], required=True)
+    parser.add_argument('--task', choices=['meta', 'content', 'keywords', 'tags'], required=True)
     parser.add_argument('--product-ids', type=int, nargs='+', help='Specific product IDs to process')
     
     args = parser.parse_args()
