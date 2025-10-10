@@ -273,6 +273,13 @@ class MultiModelSEOManager:
                 "improvements": ["Basic content optimization applied"],
                 "fallback_used": True
             }
+        elif task_type == TaskType.KEYWORD_ANALYSIS:
+            return {
+                "primary_keywords": ["product", "features"],
+                "long_tail_keywords": ["quality product features"],
+                "competitor_terms": ["similar products"],
+                "difficulty_estimate": "medium",
+                "fallback_used": True
             }
         elif task_type == TaskType.TAG_OPTIMIZATION:
             return {
@@ -282,6 +289,8 @@ class MultiModelSEOManager:
                 "tag_analysis": "Basic tag optimization applied",
                 "fallback_used": True
             }
+        else:
+            return {"error": "No fallback defined for this task type", "fallback_used": True}
     
     def _clean_html(self, html_content: str) -> str:
         """Clean HTML tags from content"""
@@ -401,7 +410,8 @@ async def main():
         'meta': TaskType.META_OPTIMIZATION,
         'content': TaskType.CONTENT_REWRITING, 
         'keywords': TaskType.KEYWORD_ANALYSIS,
-        'category': TaskType.CATEGORY_NORMALIZATION
+        'category': TaskType.CATEGORY_NORMALIZATION,
+        'tags': TaskType.TAG_OPTIMIZATION
     }
     
     task_type = task_mapping[args.task]
@@ -426,7 +436,7 @@ async def main():
     
     for result in results:
         if 'error' not in result:
-            print(f"Product {result['product_id']}: {result.get('meta_title', result.get('optimized_title', 'Unknown'))}")
+            print(f"Product {result['product_id']}: {result.get('meta_title', result.get('optimized_title', result.get('optimized_tags', 'Unknown')))}")
 
 if __name__ == "__main__":
     import asyncio

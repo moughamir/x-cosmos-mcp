@@ -39,7 +39,8 @@ model_capabilities:
       tasks:
         - meta_optimization
         - keyword_analysis
-      description: Fast meta tags and keyword analysis
+        - tag_optimization
+      description: Fast meta tags, keyword analysis, and tag optimization
       max_tokens: 512
     gemma3:1b-it-qat:
       tasks:

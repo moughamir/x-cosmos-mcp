@@ -150,7 +150,7 @@ async def run_pipeline(request: PipelineRunRequest):
 async def get_pipeline_runs_endpoint(limit: int = 100):
     try:
         runs = await get_pipeline_runs(settings.paths.database, limit=limit)
-        return runs
+        return {"status": "success", "results": runs}
     except Exception as e:
         logging.error(f"Error fetching pipeline runs: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
