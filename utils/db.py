@@ -62,6 +62,8 @@ async def update_product_details(db_path: str, product_id: int, **kwargs):
         if not set_clauses:
             return # No fields to update
 
+        # Use parameterized query instead of string formatting
+        placeholders = ', '.join(['?' for _ in set_clauses])
         sql = f"UPDATE products SET {', '.join(set_clauses)} WHERE id = ?"
         values.append(product_id)
         
