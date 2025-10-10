@@ -102,3 +102,8 @@ def find_best_category(raw_category: str, taxonomy_tree: Dict[str, TaxonomyNode]
         best_match_ratio = round(ratio, 3)
 
     return (best_match_path, best_match_ratio)
+
+def get_top_level_categories() -> List[str]:
+    """Returns a list of top-level category names from the taxonomy tree."""
+    taxonomy_tree = load_taxonomy()
+    return sorted(list(taxonomy_tree.keys()))
