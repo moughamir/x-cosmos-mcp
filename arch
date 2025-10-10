@@ -1,0 +1,12 @@
+mcp/
+├── config.yaml
+├── pipeline.py
+├── prompts/
+│   ├── normalize_product.j2
+│   └── rewrite_description.j2
+├── review_ui.py
+├── utils/
+│   ├── db.py
+│   └── text_cleaner.py
+└── requirements.txt
+

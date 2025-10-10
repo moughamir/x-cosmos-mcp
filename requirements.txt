@@ -1,0 +1,11 @@
+PyYAML
+Jinja2
+fastapi
+uvicorn
+aiofiles
+python-multipart
+sqlite-utils
+ruff
+aiosqlite
+pydantic-settings
+

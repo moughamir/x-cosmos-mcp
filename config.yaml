@@ -1,0 +1,35 @@
+# MCP Configuration
+models:
+  title_model: llama3.2:1b-instruct-q4_K_M
+  description_model: qwen2:1.5b
+  provider: ollama
+  temperature: 0.4
+  max_output_tokens: 512
+  concurrency: 1  # keep low for limited RAM
+  batch_size: 10
+  timeout: 150
+
+paths:
+  database: ./products.sqlite
+  log_table: changes_log
+  prompt_dir: ./prompts
+
+fields:
+  process:
+    - title
+    - body_html
+    - tags
+    - category
+
+categories:
+  taxonomy_source: google_merchant_center
+  taxonomy_url: https://www.google.com/basepages/producttype/taxonomy.en-US.txt
+
+pipeline:
+  steps:
+    - extract
+    - clean
+    - enrich
+    - validate
+    - review_queue
+

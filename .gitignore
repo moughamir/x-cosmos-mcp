@@ -1,0 +1,27 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Editor/IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# Frontend build artifacts
+node_modules/
+dist/
+admin/static/js/main.js
+admin/static/css/styles.css
+
+# Database
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+*.csv

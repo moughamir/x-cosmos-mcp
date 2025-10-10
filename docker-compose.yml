@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    volumes:
+      - .:/app
+    depends_on:
+      - ollama
+
+  api:
+    build: .
+    command: uvicorn api:app --host 0.0.0.0 --port 8080
+    volumes:
+      - .:/app
+    ports:
+      - "8080:8080"
+    depends_on:
+      - ollama
+
+  review_ui:
+    build: .
+    command: uvicorn review_ui:app --host 0.0.0.0 --port 8081
+    volumes:
+      - .:/app
+    ports:
+      - "8081:8081"
+    depends_on:
+      - api
+
+  ollama:
+    image: ollama/ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ./ollama_models:/root/.ollama
