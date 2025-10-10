@@ -33,6 +33,13 @@ pipeline:
     - validate
     - review_queue
 
+workers:
+  max_workers: 4
+  queue_size: 100
+  timeout: 300
+  retry_attempts: 3
+  batch_size: 10
+
 model_capabilities:
   capabilities:
     llama3.2:1b-instruct-q4_K_M:

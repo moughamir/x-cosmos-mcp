@@ -1,18 +1,18 @@
-import { LitElement, html, css } from 'lit';
-import { customElement, state } from 'lit/decorators.js';
+import { css, html, LitElement } from "lit";
+import { customElement, state } from "lit/decorators.js";
 
 interface PromptFile {
-  name: string;
+	name: string;
 }
 
 interface PromptContent {
-  name: string;
-  content: string;
+	name: string;
+	content: string;
 }
 
-@customElement('prompt-management')
+@customElement("prompt-management")
 export class PromptManagement extends LitElement {
-  static styles = css`
+	static styles = css`
     :host {
       display: block;
       padding: 1rem;
@@ -59,75 +59,82 @@ export class PromptManagement extends LitElement {
     }
   `;
 
-  @state()
-  private promptFiles: PromptFile[] = [];
+	@state()
+	private promptFiles: PromptFile[] = [];
 
-  @state()
-  private selectedPrompt: PromptContent | null = null;
+	@state()
+	private selectedPrompt: PromptContent | null = null;
 
-  async connectedCallback() {
-    super.connectedCallback();
-    this.fetchPromptFiles();
-  }
+	async connectedCallback() {
+		super.connectedCallback();
+		this.fetchPromptFiles();
+	}
 
-  async fetchPromptFiles() {
-    try {
-      const response = await fetch('/api/prompts');
-      if (response.ok) {
-        const data = await response.json();
-        this.promptFiles = data.prompts.map((name: string) => ({ name }));
-      } else {
-        console.error('Failed to fetch prompt files:', response.statusText);
-      }
-    } catch (error) {
-      console.error('Error fetching prompt files:', error);
-    }
-  }
+	async fetchPromptFiles() {
+		try {
+			const response = await fetch("/api/prompts");
+			if (response.ok) {
+				const data = await response.json();
+				this.promptFiles = data.prompts.map((name: string) => ({ name }));
+			} else {
+				console.error("Failed to fetch prompt files:", response.statusText);
+			}
+		} catch (error) {
+			console.error("Error fetching prompt files:", error);
+		}
+	}
 
-  async selectPrompt(promptName: string) {
-    try {
-      const response = await fetch(`/api/prompts/${promptName}`);
-      if (response.ok) {
-        this.selectedPrompt = await response.json();
-      } else {
-        console.error(`Failed to fetch prompt ${promptName}:`, response.statusText);
-        this.selectedPrompt = null;
-      }
-    } catch (error) {
-      console.error(`Error fetching prompt ${promptName}:`, error);
-      this.selectedPrompt = null;
-    }
-  }
+	async selectPrompt(promptName: string) {
+		try {
+			const response = await fetch(`/api/prompts/${promptName}`);
+			if (response.ok) {
+				this.selectedPrompt = await response.json();
+			} else {
+				console.error(
+					`Failed to fetch prompt ${promptName}:`,
+					response.statusText,
+				);
+				this.selectedPrompt = null;
+			}
+		} catch (error) {
+			console.error(`Error fetching prompt ${promptName}:`, error);
+			this.selectedPrompt = null;
+		}
+	}
 
-  render() {
-    return html`
+	render() {
+		return html`
       <div class="container">
         <h1>Prompt Management</h1>
 
         <div class="prompt-list">
-          ${this.promptFiles.length === 0
-            ? html`<p>No prompt files found.</p>`
-            : this.promptFiles.map(
-                (prompt) => html`
+          ${
+						this.promptFiles.length === 0
+							? html`<p>No prompt files found.</p>`
+							: this.promptFiles.map(
+									(prompt) => html`
                   <div
-                    class="prompt-item ${this.selectedPrompt?.name === prompt.name ? 'selected' : ''}"
+                    class="prompt-item ${this.selectedPrompt?.name === prompt.name ? "selected" : ""}"
                     @click="${() => this.selectPrompt(prompt.name)}"
                   >
                     ${prompt.name}
                   </div>
-                `
-              )}
+                `,
+								)
+					}
         </div>
 
-        ${this.selectedPrompt
-          ? html`
+        ${
+					this.selectedPrompt
+						? html`
               <h2>${this.selectedPrompt.name} Content</h2>
               <div class="prompt-content-area">
                 ${this.selectedPrompt.content}
               </div>
             `
-          : html`<p>Select a prompt to view its content.</p>`}
+						: html`<p>Select a prompt to view its content.</p>`
+				}
       </div>
     `;
-  }
+	}
 }

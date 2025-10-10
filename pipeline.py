@@ -6,11 +6,21 @@ from typing import Dict, List, Any, Optional
 from enum import Enum
 import requests
 from bs4 import BeautifulSoup
-
-from config import settings, TaskType # Import settings and TaskType from config
 import aiosqlite
 from utils.db import log_change, update_product_details, create_pipeline_run, update_pipeline_run, complete_pipeline_run
 from utils.category_normalizer import normalize_categories
+from config import settings, TaskType
+
+# Import worker pool initialization functions
+from worker_pool import get_worker_pool, initialize_worker_pool, shutdown_worker_pool
+
+# WebSocket manager for real-time updates (imported dynamically to avoid circular imports)
+websocket_manager = None
+
+def set_websocket_manager(manager_instance):
+    """Set the WebSocket manager for broadcasting updates"""
+    global websocket_manager
+    websocket_manager = manager_instance
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -299,22 +309,40 @@ class MultiModelSEOManager:
         soup = BeautifulSoup(html_content, 'html.parser')
         return soup.get_text().strip()
 
-    async def _normalize_categories_for_products(self, product_ids: List[int]):
-        """Normalize categories for a given list of product IDs."""
-        await normalize_categories(self.db_path, product_ids=product_ids)
+    async def _broadcast_pipeline_update(self, pipeline_run_id: int, processed_count: int, failed_count: int, total_products: int):
+        """Broadcast pipeline progress update via WebSocket"""
+        if websocket_manager:
+            try:
+                from utils.db import get_pipeline_runs
+                runs = await get_pipeline_runs(self.db_path, limit=10)
+                runs_dict = [dict(run) for run in runs]
+
+                await websocket_manager.broadcast({
+                    "type": "pipeline_progress_update",
+                    "pipeline_runs": runs_dict,
+                    "current_run": {
+                        "id": pipeline_run_id,
+                        "processed": processed_count,
+                        "failed": failed_count,
+                        "total": total_products,
+                        "percentage": (processed_count / total_products * 100) if total_products > 0 else 0
+                    }
+                }, "pipeline_progress")
+            except Exception as e:
+                logger.warning(f"Failed to broadcast pipeline update: {e}")
 
     
     async def batch_process_products(self, product_ids: List[int], task_type: TaskType):
-        """Process multiple products with the appropriate model"""
+        """Process multiple products with the appropriate model using worker pool"""
         processed_count = 0
         failed_count = 0
         pipeline_run_id = None
 
         try:
             pipeline_run_id = await create_pipeline_run(self.db_path, task_type.value, len(product_ids))
-            
+
             results = []
-            
+
             if task_type == TaskType.CATEGORY_NORMALIZATION:
                 await self._normalize_categories_for_products(product_ids=product_ids)
                 processed_count = len(product_ids)
@@ -322,13 +350,22 @@ class MultiModelSEOManager:
                     results.append({'product_id': product_id, 'status': 'Category normalized'})
                 return results
 
+            # Get worker pool
+            worker_pool = get_worker_pool()
+
+            # Submit all tasks to worker pool
+            task_futures = []
+
             for product_id in product_ids:
-                await cursor.execute(
-                    "SELECT id, title, body_html, product_type, tags FROM products WHERE id = ?",
-                    (product_id,)
-                )
-                product = await cursor.fetchone()
-                
+                async with aiosqlite.connect(self.db_path) as conn:
+                    conn.row_factory = aiosqlite.Row
+                    cursor = await conn.cursor()
+                    await cursor.execute(
+                        "SELECT id, title, body_html, product_type, tags FROM products WHERE id = ?",
+                        (product_id,)
+                    )
+                    product = await cursor.fetchone()
+
                 if product:
                     product_id, title, body_html, product_type, tags = product
                     product_data = {
@@ -336,56 +373,87 @@ class MultiModelSEOManager:
                         'title': title,
                         'body_html': body_html,
                         'product_type': product_type,
-                        'tags': tags
+                        'tags': tags,
+                        'task_type': task_type.value
                     }
-                    
-                    try:
-                        if task_type == TaskType.META_OPTIMIZATION:
-                            result = await self.optimize_meta_tags(product_data)
-                        elif task_type == TaskType.CONTENT_REWRITING:
-                            result = await self.rewrite_content(product_data)
-                        elif task_type == TaskType.KEYWORD_ANALYSIS:
-                            result = await self.analyze_keywords(product_data)
-                        elif task_type == TaskType.TAG_OPTIMIZATION:
-                            result = await self.optimize_tags(product_data)
-                        
-                        result['product_id'] = product_id
-                        result['model_used'] = await self.get_best_model_for_task(task_type)
-                        results.append(result)
+
+                    # Submit task to worker pool
+                    task_id = await worker_pool.submit_task(
+                        task_type="product_processing",
+                        data=product_data,
+                        priority=1  # Higher priority for product processing
+                    )
+                    task_futures.append((task_id, product_id))
+
+            # Collect results from worker pool
+            for task_id, product_id in task_futures:
+                try:
+                    result = await worker_pool.get_result(task_id, timeout=settings.workers.timeout)
+
+                    if result.success:
                         processed_count += 1
-                        
-                        logger.info(f"Processed product {product_id} with {result['model_used']}")
-                        
+                        results.append({
+                            'product_id': product_id,
+                            'status': 'success',
+                            'data': result.result,
+                            'model_used': result.result.get('model_used', 'unknown')
+                        })
+
                         # Update product in DB and log change
                         await update_product_details(
                             self.db_path,
                             product_id,
-                            title=result.get('meta_title', result.get('optimized_title', product_data['title'])),
-                            body_html=result.get('optimized_description', product_data['body_html']),
-                            tags=result.get('optimized_tags', product_data['tags'])
+                            title=result.result.get('meta_title', result.result.get('optimized_title', product_data['title'])),
+                            body_html=result.result.get('optimized_description', product_data['body_html']),
+                            tags=result.result.get('optimized_tags', product_data['tags'])
                         )
                         await log_change(
                             self.db_path,
                             product_id,
                             field=task_type.value,
                             old="", # TODO: Capture old values
-                            new=json.dumps(result),
-                            source=result['model_used']
+                            new=json.dumps(result.result),
+                            source=result.result.get('model_used', 'worker_pool')
                         )
-                        
-                    except Exception as e:
-                        logger.error(f"Failed to process product {product_id}: {e}")
+
+                        logger.info(f"Processed product {product_id} via worker pool")
+
+                    else:
                         failed_count += 1
                         results.append({
                             'product_id': product_id,
-                            'error': str(e),
-                            'fallback_used': True
+                            'status': 'error',
+                            'error': result.error
                         })
-                
+                        logger.error(f"Failed to process product {product_id}: {result.error}")
+
+                except asyncio.TimeoutError:
+                    failed_count += 1
+                    results.append({
+                        'product_id': product_id,
+                        'status': 'timeout',
+                        'error': 'Task timed out'
+                    })
+                    logger.error(f"Task {task_id} for product {product_id} timed out")
+
+                except Exception as e:
+                    failed_count += 1
+                    results.append({
+                        'product_id': product_id,
+                        'status': 'error',
+                        'error': str(e)
+                    })
+                    logger.error(f"Error processing product {product_id}: {e}")
+
+                # Broadcast progress update every 5 products or at the end
+                if (processed_count + failed_count) % 5 == 0 or (processed_count + failed_count) == len(product_ids):
+                    await self._broadcast_pipeline_update(pipeline_run_id, processed_count, failed_count, len(product_ids))
+
                 if pipeline_run_id:
                     await update_pipeline_run(self.db_path, pipeline_run_id, processed_products=processed_count, failed_products=failed_count)
-            
+
             return results
+
         finally:
             if pipeline_run_id:
                 status = "COMPLETED" if failed_count == 0 else "FAILED"
@@ -426,17 +494,27 @@ async def main():
             product_ids = [row[0] for row in await cursor.fetchall()]
     
     print(f"🚀 Starting {task_type.value} for {len(product_ids)} products...")
-    
-    # Process products
-    results = await manager.batch_process_products(product_ids, task_type)
-    
-    # Print results
-    print(f"✅ Processed {len([r for r in results if 'error' not in r])} products successfully")
-    print(f"❌ Failed {len([r for r in results if 'error' in r])} products")
-    
-    for result in results:
-        if 'error' not in result:
-            print(f"Product {result['product_id']}: {result.get('meta_title', result.get('optimized_title', result.get('optimized_tags', 'Unknown')))}")
+
+    try:
+        # Initialize worker pool before processing
+        print("🔧 Initializing worker pool...")
+        await initialize_worker_pool(max_workers=settings.workers.max_workers)
+
+        # Process products
+        results = await manager.batch_process_products(product_ids, task_type)
+
+        # Print results
+        print(f"✅ Processed {len([r for r in results if 'error' not in r])} products successfully")
+        print(f"❌ Failed {len([r for r in results if 'error' in r])} products")
+
+        for result in results:
+            if 'error' not in result:
+                print(f"Product {result['product_id']}: {result.get('meta_title', result.get('optimized_title', result.get('optimized_tags', 'Unknown')))}")
+
+    finally:
+        # Cleanup worker pool
+        print("🛑 Shutting down worker pool...")
+        await shutdown_worker_pool()
 
 if __name__ == "__main__":
     import asyncio

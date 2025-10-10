@@ -2,19 +2,19 @@ import { css, html, LitElement } from "lit";
 import { customElement, state } from "lit/decorators.js";
 
 export interface ChangeLogEntry {
-  id: number;
-  product_id: number;
-  field: string;
-  old: string;
-  new: string;
-  created_at: string;
-  source: string;
-  reviewed: number;
+	id: number;
+	product_id: number;
+	field: string;
+	old: string;
+	new: string;
+	created_at: string;
+	source: string;
+	reviewed: number;
 }
 
 @customElement("change-log")
 export class ChangeLog extends LitElement {
-  static styles = css`
+	static styles = css`
     :host {
       display: block;
       padding: 1rem;
@@ -71,34 +71,35 @@ export class ChangeLog extends LitElement {
     }
   `;
 
-  @state()
-  private changes: ChangeLogEntry[] = [];
+	@state()
+	private changes: ChangeLogEntry[] = [];
 
-  async connectedCallback() {
-    super.connectedCallback();
-    this.fetchChangeLog();
-  }
+	async connectedCallback() {
+		super.connectedCallback();
+		this.fetchChangeLog();
+	}
 
-  async fetchChangeLog() {
-    try {
-      const response = await fetch("/api/changes");
-      if (response.ok) {
-        this.changes = await response.json();
-      } else {
-        console.error("Failed to fetch change log:", response.statusText);
-      }
-    } catch (error) {
-      console.error("Error fetching change log:", error);
-    }
-  }
+	async fetchChangeLog() {
+		try {
+			const response = await fetch("/api/changes");
+			if (response.ok) {
+				this.changes = await response.json();
+			} else {
+				console.error("Failed to fetch change log:", response.statusText);
+			}
+		} catch (error) {
+			console.error("Error fetching change log:", error);
+		}
+	}
 
-  render() {
-    return html`
+	render() {
+		return html`
       <div class="container">
         <h1>Recent Changes</h1>
-        ${this.changes.length === 0
-          ? html`<p>No changes recorded yet.</p>`
-          : html`
+        ${
+					this.changes.length === 0
+						? html`<p>No changes recorded yet.</p>`
+						: html`
               <table>
                 <thead>
                   <tr>
@@ -114,7 +115,7 @@ export class ChangeLog extends LitElement {
                 </thead>
                 <tbody>
                   ${this.changes.map(
-                    (change) => html`
+										(change) => html`
                       <tr>
                         <td>${change.id}</td>
                         <td>
@@ -126,33 +127,38 @@ export class ChangeLog extends LitElement {
                         </td>
                         <td>${change.field}</td>
                         <td>
-                          ${change.old.length > 50
-                            ? `${change.old.substring(0, 50)}...`
-                            : change.old}
+                          ${
+														change.old.length > 50
+															? `${change.old.substring(0, 50)}...`
+															: change.old
+													}
                         </td>
                         <td>
-                          ${change.new.length > 50
-                            ? `${change.new.substring(0, 50)}...`
-                            : change.new}
+                          ${
+														change.new.length > 50
+															? `${change.new.substring(0, 50)}...`
+															: change.new
+													}
                         </td>
                         <td>${change.source}</td>
                         <td>${new Date(change.created_at).toLocaleString()}</td>
                         <td>
                           <span
-                            class="reviewed-status ${change.reviewed
-                              ? "yes"
-                              : "no"}"
+                            class="reviewed-status ${
+															change.reviewed ? "yes" : "no"
+														}"
                           >
                             ${change.reviewed ? "Yes" : "No"}
                           </span>
                         </td>
                       </tr>
-                    `
-                  )}
+                    `,
+									)}
                 </tbody>
               </table>
-            `}
+            `
+				}
       </div>
     `;
-  }
+	}
 }

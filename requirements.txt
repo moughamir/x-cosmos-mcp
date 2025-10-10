@@ -13,3 +13,4 @@ httpx
 requests
 beautifulsoup4
 aiohttp
+uvicorn[standard]

@@ -1,15 +1,15 @@
-import { LitElement, html, css } from 'lit';
-import { customElement, state } from 'lit/decorators.js';
+import { css, html, LitElement } from "lit";
+import { customElement, state } from "lit/decorators.js";
 
 interface TaxonomyNode {
-  name: string;
-  full_path: string;
-  children: { [key: string]: TaxonomyNode };
+	name: string;
+	full_path: string;
+	children: { [key: string]: TaxonomyNode };
 }
 
-@customElement('taxonomy-browser')
+@customElement("taxonomy-browser")
 export class TaxonomyBrowser extends LitElement {
-  static styles = css`
+	static styles = css`
     :host {
       display: block;
       padding: 1rem;
@@ -52,72 +52,76 @@ export class TaxonomyBrowser extends LitElement {
     }
   `;
 
-  @state()
-  private taxonomyTree: { [key: string]: TaxonomyNode } = {};
+	@state()
+	private taxonomyTree: { [key: string]: TaxonomyNode } = {};
 
-  @state()
-  private expandedNodes: Set<string> = new Set();
+	@state()
+	private expandedNodes: Set<string> = new Set();
 
-  async connectedCallback() {
-    super.connectedCallback();
-    this.fetchTaxonomyTree();
-  }
+	async connectedCallback() {
+		super.connectedCallback();
+		this.fetchTaxonomyTree();
+	}
 
-  async fetchTaxonomyTree() {
-    try {
-      const response = await fetch('/api/taxonomy/tree');
-      if (response.ok) {
-        this.taxonomyTree = await response.json();
-      } else {
-        console.error('Failed to fetch taxonomy tree:', response.statusText);
-      }
-    } catch (error) {
-      console.error('Error fetching taxonomy tree:', error);
-    }
-  }
+	async fetchTaxonomyTree() {
+		try {
+			const response = await fetch("/api/taxonomy/tree");
+			if (response.ok) {
+				this.taxonomyTree = await response.json();
+			} else {
+				console.error("Failed to fetch taxonomy tree:", response.statusText);
+			}
+		} catch (error) {
+			console.error("Error fetching taxonomy tree:", error);
+		}
+	}
 
-  toggleNode(fullPath: string) {
-    if (this.expandedNodes.has(fullPath)) {
-      this.expandedNodes.delete(fullPath);
-    } else {
-      this.expandedNodes.add(fullPath);
-    }
-    this.requestUpdate();
-  }
+	toggleNode(fullPath: string) {
+		if (this.expandedNodes.has(fullPath)) {
+			this.expandedNodes.delete(fullPath);
+		} else {
+			this.expandedNodes.add(fullPath);
+		}
+		this.requestUpdate();
+	}
 
-  renderNode(node: TaxonomyNode) {
-    const hasChildren = Object.keys(node.children).length > 0;
-    const isExpanded = this.expandedNodes.has(node.full_path);
+	renderNode(node: TaxonomyNode) {
+		const hasChildren = Object.keys(node.children).length > 0;
+		const isExpanded = this.expandedNodes.has(node.full_path);
 
-    return html`
+		return html`
       <li>
         <div class="category-item" @click="${() => this.toggleNode(node.full_path)}">
-          ${hasChildren ? html`<span class="toggle-icon">${isExpanded ? '▼' : '►'}</span>` : html`<span class="toggle-icon"></span>`}
+          ${hasChildren ? html`<span class="toggle-icon">${isExpanded ? "▼" : "►"}</span>` : html`<span class="toggle-icon"></span>`}
           ${node.name} <span class="full-path">(${node.full_path})</span>
         </div>
-        ${isExpanded && hasChildren
-          ? html`
+        ${
+					isExpanded && hasChildren
+						? html`
               <ul>
-                ${Object.values(node.children).map(child => this.renderNode(child))}
+                ${Object.values(node.children).map((child) => this.renderNode(child))}
               </ul>
             `
-          : ''}
+						: ""
+				}
       </li>
     `;
-  }
+	}
 
-  render() {
-    return html`
+	render() {
+		return html`
       <div class="container">
         <h1>Google Product Taxonomy Browser</h1>
-        ${Object.keys(this.taxonomyTree).length === 0
-          ? html`<p>Loading taxonomy tree...</p>`
-          : html`
+        ${
+					Object.keys(this.taxonomyTree).length === 0
+						? html`<p>Loading taxonomy tree...</p>`
+						: html`
               <ul>
-                ${Object.values(this.taxonomyTree).map(rootNode => this.renderNode(rootNode))}
+                ${Object.values(this.taxonomyTree).map((rootNode) => this.renderNode(rootNode))}
               </ul>
-            `}
+            `
+				}
       </div>
     `;
-  }
+	}
 }

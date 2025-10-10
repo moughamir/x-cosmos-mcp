@@ -70,6 +70,13 @@ class Fields(BaseModel):
 class Pipeline(BaseModel):
     steps: List[str]
 
+class Workers(BaseModel):
+    max_workers: int
+    queue_size: int
+    timeout: int
+    retry_attempts: int
+    batch_size: int
+
 class Settings(BaseSettings):
     ollama: Ollama = Ollama()
     models: Models
@@ -77,6 +84,7 @@ class Settings(BaseSettings):
     categories: Categories
     fields: Fields
     pipeline: Pipeline
+    workers: Workers
     model_capabilities: ModelCapabilities
 
     model_config = SettingsConfigDict(yaml_file="config.yaml")

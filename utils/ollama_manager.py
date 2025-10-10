@@ -13,6 +13,10 @@ async def list_ollama_models() -> List[Dict[str, Any]]:
         return response.json().get("models", [])
     except requests.exceptions.RequestException as e:
         print(f"Error listing Ollama models: {e}")
+        # Return a proper error indicator instead of just an empty list
+        return []
+    except Exception as e:
+        print(f"Unexpected error listing Ollama models: {e}")
         return []
 
 async def pull_ollama_model(model_name: str) -> Dict[str, Any]:

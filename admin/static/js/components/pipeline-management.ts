@@ -151,6 +151,8 @@ export class PipelineManagement extends LitElement {
             <option value="meta_optimization">Meta Optimization</option>
             <option value="content_rewriting">Content Rewriting</option>
             <option value="keyword_analysis">Keyword Analysis</option>
+            <option value="tag_optimization">Tag Optimization</option>
+            <option value="category_normalization">Category Normalization</option>
           </select>
         </div>
 
