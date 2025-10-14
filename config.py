@@ -77,6 +77,13 @@ class Workers(BaseModel):
     retry_attempts: int
     batch_size: int
 
+class Postgres(BaseModel):
+    host: str
+    port: int
+    user: str
+    password: str
+    database: str
+
 class Settings(BaseSettings):
     ollama: Ollama = Ollama()
     models: Models
@@ -85,6 +92,7 @@ class Settings(BaseSettings):
     fields: Fields
     pipeline: Pipeline
     workers: Workers
+    postgres: Postgres
     model_capabilities: ModelCapabilities
 
     model_config = SettingsConfigDict(yaml_file="config.yaml")

@@ -28,7 +28,6 @@ logger = logging.getLogger(__name__)
 
 class MultiModelSEOManager:
     def __init__(self):
-        self.db_path = settings.paths.database
         self.ollama_url = settings.ollama.base_url  # Use proper base_url instead of manual construction
         self.model_capabilities = settings.model_capabilities.capabilities
         self.fallback_order = settings.model_capabilities.fallback_order
@@ -314,7 +313,7 @@ class MultiModelSEOManager:
         if websocket_manager:
             try:
                 from utils.db import get_pipeline_runs
-                runs = await get_pipeline_runs(self.db_path, limit=10)
+                runs = await get_pipeline_runs(limit=10)
                 runs_dict = [dict(run) for run in runs]
 
                 await websocket_manager.broadcast({
@@ -339,7 +338,7 @@ class MultiModelSEOManager:
         pipeline_run_id = None
 
         try:
-            pipeline_run_id = await create_pipeline_run(self.db_path, task_type.value, len(product_ids))
+            pipeline_run_id = await create_pipeline_run(task_type.value, len(product_ids))
 
             results = []
 
@@ -357,17 +356,20 @@ class MultiModelSEOManager:
             task_futures = []
 
             for product_id in product_ids:
-                async with aiosqlite.connect(self.db_path) as conn:
-                    conn.row_factory = aiosqlite.Row
-                    cursor = await conn.cursor()
-                    await cursor.execute(
-                        "SELECT id, title, body_html, product_type, tags FROM products WHERE id = ?",
-                        (product_id,)
+                conn = None
+                try:
+                    conn = await get_db_connection()
+                    product_row = await conn.fetchrow(
+                        "SELECT id, title, body_html, product_type, tags FROM products WHERE id = $1",
+                        product_id
                     )
-                    product = await cursor.fetchone()
+                    product = dict(product_row) if product_row else None
+                finally:
+                    if conn:
+                        await release_db_connection(conn)
 
                 if product:
-                    product_id, title, body_html, product_type, tags = product
+                    product_id, title, body_html, product_type, tags = product['id'], product['title'], product['body_html'], product['product_type'], product['tags']
                     product_data = {
                         'id': product_id,
                         'title': title,
@@ -401,14 +403,12 @@ class MultiModelSEOManager:
 
                         # Update product in DB and log change
                         await update_product_details(
-                            self.db_path,
                             product_id,
                             title=result.result.get('meta_title', result.result.get('optimized_title', product_data['title'])),
-                            body_html=result.result.get('optimized_description', product_data['body_html']),
+                            body_html=result.result.get('optimized_description', product_data['body_html'])),
                             tags=result.result.get('optimized_tags', product_data['tags'])
                         )
                         await log_change(
-                            self.db_path,
                             product_id,
                             field=task_type.value,
                             old="", # TODO: Capture old values
@@ -450,21 +450,22 @@ class MultiModelSEOManager:
                     await self._broadcast_pipeline_update(pipeline_run_id, processed_count, failed_count, len(product_ids))
 
                 if pipeline_run_id:
-                    await update_pipeline_run(self.db_path, pipeline_run_id, processed_products=processed_count, failed_products=failed_count)
+                    await update_pipeline_run(pipeline_run_id, processed_products=processed_count, failed_products=failed_count)
 
             return results
 
         finally:
             if pipeline_run_id:
                 status = "COMPLETED" if failed_count == 0 else "FAILED"
-                await complete_pipeline_run(self.db_path, pipeline_run_id, status, processed_count, failed_count)
+                await complete_pipeline_run(pipeline_run_id, status, processed_count, failed_count)
 
 # Usage example and CLI interface
 async def main():
     import argparse
+    from utils.db import get_all_products # Import get_all_products
     
     parser = argparse.ArgumentParser(description='Multi-Model SEO Optimizer')
-    parser.add_argument('--db-path', required=False, help='Database file path') # db_path is now from settings
+    # Removed --db-path argument as it's now handled by settings
     parser.add_argument('--task', choices=['meta', 'content', 'keywords', 'tags'], required=True)
     parser.add_argument('--product-ids', type=int, nargs='+', help='Specific product IDs to process')
     
@@ -488,10 +489,9 @@ async def main():
     if args.product_ids:
         product_ids = args.product_ids
     else:
-        async with aiosqlite.connect(manager.db_path) as conn:
-            cursor = await conn.cursor()
-            await cursor.execute("SELECT id FROM products LIMIT 10")
-            product_ids = [row[0] for row in await cursor.fetchall()]
+        # Use get_all_products from utils.db (now asyncpg compatible)
+        products = await get_all_products()
+        product_ids = [product['id'] for product in products]
     
     print(f"🚀 Starting {task_type.value} for {len(product_ids)} products...")
 

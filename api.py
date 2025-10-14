@@ -10,7 +10,6 @@ import sys
 from pathlib import Path
 import asyncio
 import json
-import aiosqlite
 
 # Add the parent directory to the Python path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -19,9 +18,10 @@ sys.path.append(str(Path(__file__).parent.parent))
 # Database and utility imports
 from utils.db import (
     get_all_products, get_product_details, update_product_details,
-    get_products_for_review, mark_as_reviewed, get_change_log, update_database_schema, get_db_schema, get_pipeline_runs
+    get_products_for_review, mark_as_reviewed, get_change_log, update_database_schema, get_db_schema, get_pipeline_runs,
+    init_db_pool, close_db_pool # Import new functions
 )
-from utils.db_migrate import migrate_schema
+
 from utils.ollama_manager import list_ollama_models, pull_ollama_model
 from pipeline import MultiModelSEOManager
 from config import settings, TaskType
@@ -72,21 +72,25 @@ set_websocket_manager(manager)
 async def lifespan(app: FastAPI):
     # Startup
     try:
+        # Initialize PostgreSQL connection pool
+        await init_db_pool()
+        logging.info("PostgreSQL connection pool initialized.")
+
         # Update database schema
-        await update_database_schema(settings.paths.database)
+        await update_database_schema()
         logging.info("Database schema updated successfully")
 
         # Run migrations for additional tables (e.g., pipeline_runs)
-        await migrate_schema(settings.paths.database)
-        logging.info("Database migrations applied successfully")
+        # await migrate_schema(settings.paths.database) # No longer needed as update_database_schema handles all tables
+        # logging.info("Database migrations applied successfully")
 
         # Initialize worker pool for parallel processing
         await initialize_worker_pool(max_workers=settings.workers.max_workers)
         logging.info(f"Worker pool initialized with {settings.workers.max_workers} workers")
 
         # Test database connection by fetching products
-        products = await get_all_products(settings.paths.database)
-        logging.info(f"Database connection successful. Found {len(products)} products.")
+        # products = await get_all_products(settings.paths.database) # This will now use asyncpg
+        # logging.info(f"Database connection successful. Found {len(products)} products.")
     except Exception as e:
         logging.error(f"Startup error: {e}", exc_info=True)
         raise
@@ -96,6 +100,8 @@ async def lifespan(app: FastAPI):
     # Shutdown
     await shutdown_worker_pool()
     logging.info("Worker pool shutdown complete")
+    await close_db_pool()
+    logging.info("PostgreSQL connection pool closed.")
 
 # Initialize FastAPI app with lifespan
 app = FastAPI(lifespan=lifespan)
@@ -133,7 +139,7 @@ class PipelineRunRequest(BaseModel):
 @app.get("/api/products")
 async def get_products():
     try:
-        products = await get_all_products(settings.paths.database)
+        products = await get_all_products()
         return products
     except Exception as e:
         logging.error(f"Error fetching all products: {e}", exc_info=True)
@@ -142,7 +148,7 @@ async def get_products():
 @app.get("/api/products/{product_id}")
 async def get_product(product_id: int):
     try:
-        details = await get_product_details(settings.paths.database, product_id)
+        details = await get_product_details(product_id)
         if not details["product"]:
             raise HTTPException(status_code=404, detail="Product not found")
         return details
@@ -154,22 +160,22 @@ async def get_product(product_id: int):
 
 @app.put("/api/products/{product_id}")
 async def update_product(product_id: int, product_update: ProductUpdate):
-    await update_product_details(settings.paths.database, product_id, **product_update.model_dump())
+    await update_product_details(product_id, **product_update.model_dump())
     return {"status": "success"}
 
 @app.get("/api/products/review")
 async def get_review_products(limit: int = 10):
-    products = await get_products_for_review(settings.paths.database, limit=limit)
+    products = await get_products_for_review(limit=limit)
     return products
 
 @app.put("/api/products/{product_id}/review")
 async def review_product(product_id: int):
-    await mark_as_reviewed(settings.paths.database, product_id)
+    await mark_as_reviewed(product_id)
     return {"status": "success"}
 
 @app.get("/api/changes")
 async def get_changes(limit: int = 100):
-    changes = await get_change_log(settings.paths.database, limit=limit)
+    changes = await get_change_log(limit=limit)
     return changes
 
 @app.get("/api/ollama/models")
@@ -194,14 +200,7 @@ class BatchProcessRequest(BaseModel):
     batch_size: Optional[int] = None
 
 @app.post("/api/pipeline/run")
-async def run_pipeline_endpoint(request: PipelineRunRequest):
-    """Run pipeline processing for products"""
-    from worker_pool import get_worker_pool
-
-    try:
-        if not request.product_ids:
-            # Fetch all product IDs if none are specified
-            products = await get_all_products(settings.paths.database)
+            products = await get_all_products()
             product_ids = [product['id'] for product in products]
         else:
             product_ids = request.product_ids
@@ -235,7 +234,7 @@ async def batch_process_endpoint(request: BatchProcessRequest):
     try:
         if not request.product_ids:
             # Fetch all product IDs if none are specified
-            products = await get_all_products(settings.paths.database)
+            products = await get_all_products()
             product_ids = [product['id'] for product in products]
         else:
             product_ids = request.product_ids
@@ -257,14 +256,17 @@ async def batch_process_endpoint(request: BatchProcessRequest):
 
             # Prepare product data for each product in batch
             for product_id in batch:
-                async with aiosqlite.connect(settings.paths.database) as conn:
-                    conn.row_factory = aiosqlite.Row
-                    cursor = await conn.cursor()
-                    await cursor.execute(
-                        "SELECT id, title, body_html, product_type, tags FROM products WHERE id = ?",
-                        (product_id,)
+                conn = None
+                try:
+                    conn = await get_db_connection()
+                    product_row = await conn.fetchrow(
+                        "SELECT id, title, body_html, product_type, tags FROM products WHERE id = $1",
+                        product_id
                     )
-                    product = await cursor.fetchone()
+                    product = dict(product_row) if product_row else None
+                finally:
+                    if conn:
+                        await release_db_connection(conn)
 
                 if product:
                     product_id, title, body_html, product_type, tags = product
@@ -369,7 +371,7 @@ async def get_prompt_content(prompt_name: str):
 @app.get("/api/db/schema")
 async def get_db_schema_endpoint():
     try:
-        schema = await get_db_schema(settings.paths.database)
+        schema = await get_db_schema()
         # Convert aiosqlite.Row objects to dicts for JSON serialization
         # The schema returned by get_db_schema is already a dict of lists of dicts, so no direct conversion needed here.
         # However, ensure that the inner column details are plain dicts if they were aiosqlite.Row
@@ -391,7 +393,7 @@ async def websocket_pipeline_progress(websocket: WebSocket):
 
     try:
         # Send initial pipeline runs data
-        runs = await get_pipeline_runs(settings.paths.database, limit=50)
+        runs = await get_pipeline_runs(limit=50)
         runs_dict = [dict(run) for run in runs]
         await websocket.send_json({
             "type": "initial_data",
@@ -407,7 +409,7 @@ async def websocket_pipeline_progress(websocket: WebSocket):
 
                 if message.get("type") == "request_refresh":
                     # Send fresh data when client requests it
-                    runs = await get_pipeline_runs(settings.paths.database, limit=50)
+                    runs = await get_pipeline_runs(limit=50)
                     runs_dict = [dict(run) for run in runs]
                     await websocket.send_json({
                         "type": "pipeline_runs_update",
