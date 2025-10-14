@@ -4,12 +4,8 @@ services:
     command: bash -c "python -c 'import time; time.sleep(10)' && python pipeline.py --task meta"
     volumes:
       - .:/app
-    network_mode: "host"
-    environment:
-      - OLLAMA_HOST=http://localhost:11434
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     depends_on:
+      - ollama
       - x-cosmos-msp-api
 
   x-cosmos-msp-api:
@@ -19,14 +15,18 @@ services:
       - .:/app
     ports:
       - "8080:8080"
-    network_mode: "host"
-    environment:
-      - OLLAMA_HOST=http://localhost:11434
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
       timeout: 100s
       retries: 3
       start_period: 10s
+    depends_on:
+      - ollama
+
+  ollama:
+    image: ollama/ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ./ollama_models:/root/.ollama
