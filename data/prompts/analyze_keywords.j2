@@ -1,0 +1,19 @@
+ANALYZE KEYWORDS FOR PRODUCT:
+
+Product: {{ product_data.get('title', '') }}
+Description: {{ clean_html(product_data.get('body_html', ''))[:800] }}
+Current Tags: {{ product_data.get('tags', '') }}
+
+Provide comprehensive keyword analysis:
+- Primary keywords (high search volume)
+- Secondary keywords (long-tail)
+- Competitor keywords
+- Keyword difficulty assessment
+
+JSON Response:
+{
+    "primary_keywords": ["kw1", "kw2"],
+    "long_tail_keywords": ["long tail1", "long tail2"],
+    "competitor_terms": ["comp1", "comp2"],
+    "difficulty_estimate": "low/medium/high"
+}

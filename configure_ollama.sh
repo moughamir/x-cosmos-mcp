@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # Set the OLLAMA_MODELS environment variable to store models in the project directory
-export OLLAMA_MODELS="/home/odin/Documents/Vaults/x-cosmos-ws/mcp/openai/ollama_models"
+# TODO: Change this path to your desired directory (pwd/data/ollama.models)
+export OLLAMA_MODELS="$(pwd)/data/ollama.models"
 
 echo "OLLAMA_MODELS is set to: $OLLAMA_MODELS"
 

@@ -14,6 +14,9 @@ from .config import settings, TaskType
 # Import worker pool initialization functions
 from .worker_pool import get_worker_pool, initialize_worker_pool, shutdown_worker_pool
 
+import jinja2
+from .utils.tokenizer import count_tokens
+
 # WebSocket manager for real-time updates (imported dynamically to avoid circular imports)
 websocket_manager = None
 
@@ -25,6 +28,11 @@ def set_websocket_manager(manager_instance):
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+prompt_loader = jinja2.FileSystemLoader(searchpath=settings.paths.prompt_dir)
+prompt_env = jinja2.Environment(loader=prompt_loader)
+
+class MultiModelSEOManager:
 
 class MultiModelSEOManager:
     def __init__(self):
@@ -72,81 +80,25 @@ class MultiModelSEOManager:
         """Optimize meta title and description using specialized model"""
         model = await self.get_best_model_for_task(TaskType.META_OPTIMIZATION)
         
-        prompt = f"""
-        OPTIMIZE META TAGS FOR SEO:
-        
-        Product: {product_data.get('title', '')}
-        Type: {product_data.get('product_type', '')}
-        Current Description: {self._clean_html(product_data.get('body_html', ''))[:500]}
-        
-        Generate:
-        1. SEO-optimized meta title (55-60 characters)
-        2. Compelling meta description (150-160 characters) 
-        3. 5-8 relevant keywords
-        
-        Respond in JSON format:
-        {{
-            "meta_title": "optimized title",
-            "meta_description": "optimized description",
-            "seo_keywords": "keyword1, keyword2, keyword3"
-        }}
-        """
-        
+        template = prompt_env.get_template("meta_optimization.j2")
+        prompt = template.render(product_data=product_data, clean_html=self._clean_html)
         return await self._call_model_with_fallback(model, prompt, task_type=TaskType.META_OPTIMIZATION)
     
     async def rewrite_content(self, product_data: Dict[str, Any]) -> Dict[str, Any]:
         """Rewrite product content for better SEO"""
         model = await self.get_best_model_for_task(TaskType.CONTENT_REWRITING)
         
-        prompt = f"""
-        REWRITE PRODUCT CONTENT FOR SEO:
-        
-        Original Title: {product_data.get('title', '')}
-        Original Description: {self._clean_html(product_data.get('body_html', ''))}
-        
-        Create an SEO-optimized version that:
-        - Includes primary keywords naturally
-        - Uses compelling, engaging language
-        - Maintains all technical specifications
-        - Improves readability and scannability
-        
-        Respond with JSON:
-        {{
-            "optimized_title": "rewritten title",
-            "optimized_description": "rewritten HTML description",
-            "content_score": 0.85,
-            "improvements": ["improvement1", "improvement2"]
-        }}
-        """
-        
+        template = prompt_env.get_template("rewrite_content.j2")
+        prompt = template.render(product_data=product_data, clean_html=self._clean_html)
         return await self._call_model_with_fallback(model, prompt, task_type=TaskType.CONTENT_REWRITING)
     
     async def analyze_keywords(self, product_data: Dict[str, Any]) -> Dict[str, Any]:
         """Perform comprehensive keyword analysis"""
         model = await self.get_best_model_for_task(TaskType.KEYWORD_ANALYSIS)
         
-        prompt = f"""
-        ANALYZE KEYWORDS FOR PRODUCT:
-        
-        Product: {product_data.get('title', '')}
-        Description: {self._clean_html(product_data.get('body_html', ''))[:800]}
-        Current Tags: {product_data.get('tags', '')}
-        
-        Provide comprehensive keyword analysis:
-        - Primary keywords (high search volume)
-        - Secondary keywords (long-tail)
-        - Competitor keywords
-        - Keyword difficulty assessment
-        
-        JSON Response:
-        {{
-            "primary_keywords": ["kw1", "kw2"],
-            "long_tail_keywords": ["long tail1", "long tail2"],
-            "competitor_terms": ["comp1", "comp2"],
-            "difficulty_estimate": "low/medium/high"
-        }}
-        """
-        
+        template = prompt_env.get_template("analyze_keywords.j2")
+        prompt = template.render(product_data=product_data, clean_html=self._clean_html)
+        return await self._call_model_with_fallback(model, prompt, task_type=TaskType.KEYWORD_ANALYSIS)
     async def optimize_tags(self, product_data: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze and optimize product tags using AI"""
         model = await self.get_best_model_for_task(TaskType.TAG_OPTIMIZATION)
@@ -156,37 +108,8 @@ class MultiModelSEOManager:
         description = self._clean_html(product_data.get('body_html', ''))
         category = product_data.get('product_type', '')
 
-        prompt = f"""
-        ANALYZE AND OPTIMIZE PRODUCT TAGS FOR SEO:
-
-        Product Title: {title}
-        Category: {category}
-        Current Tags: {current_tags}
-        Description: {description[:800]}
-
-        Task: Analyze current tags and generate improved SEO-optimized tags that:
-        1. Include primary product keywords
-        2. Add relevant long-tail keywords
-        3. Remove redundant or irrelevant tags
-        4. Ensure proper tag formatting (comma-separated)
-        5. Maintain brand/product specificity
-        6. Follow SEO best practices (10-15 tags max)
-
-        Return JSON with:
-        - optimized_tags: comma-separated string of improved tags
-        - removed_tags: array of tags that were removed
-        - added_tags: array of new tags that were added
-        - tag_analysis: brief explanation of changes made
-
-        JSON Response:
-        {{
-            "optimized_tags": "tag1, tag2, tag3, tag4",
-            "removed_tags": ["old_tag1", "redundant_tag"],
-            "added_tags": ["new_tag1", "relevant_tag"],
-            "tag_analysis": "Brief explanation of optimization strategy"
-        }}
-        """
-
+        template = prompt_env.get_template("optimize_tags.j2")
+        prompt = template.render(title=title, category=category, current_tags=current_tags, description=description)
         return await self._call_model_with_fallback(model, prompt, task_type=TaskType.TAG_OPTIMIZATION)
     
     async def _call_model_with_fallback(self, model: str, prompt: str, task_type: TaskType, max_retries: int = 3) -> Dict[str, Any]:
@@ -217,11 +140,8 @@ class MultiModelSEOManager:
         capabilities_obj = self.model_capabilities.get(model)
         if capabilities_obj:
             capabilities = capabilities_obj.model_dump()
-        else:
-            capabilities = {"max_tokens": 1024}
-        
-        response = requests.post(
-            f"{self.ollama_url}/api/generate",
+                logger.info(f"Prompt for {model} ({count_tokens(prompt, model)} tokens):\n{prompt}")
+                response = requests.post(            f"{self.ollama_url}/api/generate",
             json={
                 "model": model,
                 "prompt": prompt,

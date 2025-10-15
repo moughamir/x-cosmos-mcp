@@ -1,0 +1,18 @@
+REWRITE PRODUCT CONTENT FOR SEO:
+
+Original Title: {{ product_data.get('title', '') }}
+Original Description: {{ clean_html(product_data.get('body_html', '')) }}
+
+Create an SEO-optimized version that:
+- Includes primary keywords naturally
+- Uses compelling, engaging language
+- Maintains all technical specifications
+- Improves readability and scannability
+
+Respond with JSON:
+{
+    "optimized_title": "rewritten title",
+    "optimized_description": "rewritten HTML description",
+    "content_score": 0.85,
+    "improvements": ["improvement1", "improvement2"]
+}

@@ -1,0 +1,17 @@
+OPTIMIZE META TAGS FOR SEO:
+
+Product: {{ product_data.get('title', '') }}
+Type: {{ product_data.get('product_type', '') }}
+Current Description: {{ clean_html(product_data.get('body_html', ''))[:500] }}
+
+Generate:
+1. SEO-optimized meta title (55-60 characters)
+2. Compelling meta description (150-160 characters) 
+3. 5-8 relevant keywords
+
+Respond in JSON format:
+{
+    "meta_title": "optimized title",
+    "meta_description": "optimized description",
+    "seo_keywords": "keyword1, keyword2, keyword3"
+}
