@@ -26,6 +26,9 @@ from .utils.db_migrate import migrate_schema
 
 from .utils.ollama_manager import list_ollama_models, pull_ollama_model
 
+# Import worker pool for initialization
+from .worker_pool import initialize_worker_pool, shutdown_worker_pool
+
 
 # WebSocket connection manager for real-time updates
 class ConnectionManager:
@@ -90,9 +93,7 @@ async def lifespan(app: FastAPI):
         }
 
         # Initialize worker pool for parallel processing
-        await initialize_worker_pool(
-            max_workers=settings.workers.max_workers, task_handlers=task_handlers
-        )
+        await initialize_worker_pool(max_workers=settings.workers.max_workers, task_handlers=task_handlers)
         logging.info(
             f"Worker pool initialized with {settings.workers.max_workers} workers"
         )
