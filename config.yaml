@@ -8,6 +8,12 @@ models:
   concurrency: 1  # keep low for limited RAM
   batch_size: 10
   timeout: 150
+  quantize: false
+
+quantized_models:
+  llama3.2:1b-instruct-q4_K_M: llama3.2:1b-instruct-q2_K
+  gemma3:1b-it-qat: gemma3:1b-it-q2_K
+  qwen2:1.5b: qwen2:0.5b
 
 paths:
   database: ./products.sqlite

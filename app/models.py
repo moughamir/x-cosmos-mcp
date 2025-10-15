@@ -27,6 +27,8 @@ class Models(BaseModel):
     concurrency: int
     batch_size: int
     timeout: int
+    quantize: bool = False
+    quantized_models: Dict[str, str] = {}
 
 class Paths(BaseModel):
     database: str

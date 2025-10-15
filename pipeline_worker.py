@@ -2,10 +2,9 @@ import asyncio
 import logging
 
 from app.pipeline.pipeline import MultiModelSEOManager
-from app.models import TaskType, settings
+from app.config import TaskType, settings
 from app.worker_pool import initialize_worker_pool, shutdown_worker_pool
 from app.api import pipeline_task_queue
-
 from app.utils.logging_config import setup_logging
 
 logger = logging.getLogger(__name__)

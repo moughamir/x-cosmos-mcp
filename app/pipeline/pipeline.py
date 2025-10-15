@@ -10,11 +10,10 @@ import aiosqlite
 from utils.db import log_change, update_product_details, create_pipeline_run, update_pipeline_run, complete_pipeline_run
 from utils.category_normalizer import normalize_categories
 from app.config import settings, TaskType
+from app.utils.tokenizer import truncate_text_to_tokens
 
 # Import worker pool initialization functions
 from app.worker_pool import get_worker_pool, initialize_worker_pool, shutdown_worker_pool
-
-from app.utils.tokenizer import truncate_text_to_tokens
 
 # WebSocket manager for real-time updates (imported dynamically to avoid circular imports)
 websocket_manager = None

@@ -11,6 +11,7 @@ from pathlib import Path
 import asyncio
 import json
 import aiosqlite
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseCallNext
 
 # Add the parent directory to the Python path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -28,9 +29,6 @@ from app.worker_pool import initialize_worker_pool, shutdown_worker_pool, get_wo
 
 # Create a global queue for pipeline tasks
 pipeline_task_queue = asyncio.Queue()
-
-from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseCallNext
-from starlette.responses import JSONResponse
 
 # WebSocket connection manager for real-time updates
 class ConnectionManager:
@@ -164,7 +162,6 @@ async def get_product(product_id: int):
             raise HTTPException(status_code=404, detail="Product not found")
         return details
     except HTTPException as he:
-        raise he
     except Exception as e:
         logging.error(f"Error fetching product details for ID {product_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
@@ -193,7 +190,7 @@ async def get_changes(limit: int = 100):
 async def get_ollama_models():
     """Get available Ollama models"""
     try:
-        models = await list_ollama_models()
+        models = await list_ollama_models()+
         return {"models": models, "status": "connected"}
     except Exception as e:
         logging.error(f"Error fetching Ollama models: {e}", exc_info=True)
@@ -378,7 +375,6 @@ async def get_prompt_content(prompt_name: str):
             content = f.read()
         return {"name": prompt_name, "content": content}
     except HTTPException as he:
-        raise he
     except Exception as e:
         logging.error(f"Error fetching prompt content for {prompt_name}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
