@@ -3,12 +3,14 @@ PostgreSQL database utilities for MCP Admin
 Uses asyncpg for high-performance async database operations
 """
 
-import asyncpg
 import asyncio
 import datetime
 import json
 import logging
 from typing import Any, Dict, List, Optional
+
+import asyncpg
+
 from app.config import settings
 
 # Global connection pool for better performance
@@ -100,41 +102,72 @@ async def get_product_details(product_id: int):
             await release_db_connection(conn)
 
 async def update_product_details(product_id: int, **kwargs):
-    """Update product details with automatic change logging"""
+    """Update product details or create if it doesn't exist"""
     conn = None
     try:
         conn = await get_db_connection()
 
-        # Build dynamic update query
-        set_clauses = []
-        values = []
-        param_count = 1
+        # Check if product exists
+        existing_product = await conn.fetchrow(
+            "SELECT id FROM products WHERE id = $1", product_id
+        )
 
-        for field, value in kwargs.items():
-            set_clauses.append(f"{field} = ${param_count}")
-            values.append(value)
-            param_count += 1
+        if existing_product:
+            # Update existing product
+            set_clauses = []
+            values = []
+            param_count = 1
 
-        if not set_clauses:
-            return
+            for field, value in kwargs.items():
+                set_clauses.append(f"{field} = ${param_count}")
+                values.append(value)
+                param_count += 1
 
-        # Add updated_at timestamp
-        set_clauses.append(f"updated_at = ${param_count}")
-        values.append(datetime.datetime.now())
+            if not set_clauses:
+                return
 
-        # Execute update
-        query = f"""
-            UPDATE products
-            SET {', '.join(set_clauses)}
-            WHERE id = ${param_count + 1}
-        """
-        values.append(product_id)
+            set_clauses.append(f"updated_at = ${param_count}")
+            values.append(datetime.datetime.now())
 
-        await conn.execute(query, *values)
-        logging.info(f"Updated product {product_id} with fields: {list(kwargs.keys())}")
+            query = f"""
+                UPDATE products
+                SET {', '.join(set_clauses)}
+                WHERE id = ${param_count + 1}
+            """
+            values.append(product_id)
+
+            await conn.execute(query, *values)
+            logging.info(f"Updated product {product_id} with fields: {list(kwargs.keys())}")
+        else:
+            # Create new product
+            insert_columns = ["id"]
+            insert_values = [product_id]
+            value_placeholders = ["$1"]
+            param_count = 2
+
+            for field, value in kwargs.items():
+                insert_columns.append(field)
+                insert_values.append(value)
+                value_placeholders.append(f"${param_count}")
+                param_count += 1
+            
+            insert_columns.append("created_at")
+            insert_values.append(datetime.datetime.now())
+            value_placeholders.append(f"${param_count}")
+
+            insert_columns.append("updated_at")
+            insert_values.append(datetime.datetime.now())
+            value_placeholders.append(f"${param_count + 1}")
+
+            query = f"""
+                INSERT INTO products ({', '.join(insert_columns)})
+                VALUES ({', '.join(value_placeholders)})
+            """
+            await conn.execute(query, *insert_values)
+            logging.info(f"Created new product {product_id} with fields: {list(kwargs.keys())}")
 
     except Exception as e:
-        logging.error(f"Error updating product {product_id}: {e}")
+        logging.error(f"Error updating/creating product {product_id}: {e}")
         raise
     finally:
         if conn:
@@ -508,4 +541,4 @@ async def get_pipeline_runs(limit: int = 100):
             await release_db_connection(conn)
 
 # Initialize database pool on module import
-asyncio.create_task(init_db_pool())
+

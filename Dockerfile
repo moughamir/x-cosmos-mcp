@@ -62,6 +62,7 @@ COPY --from=frontend-builder /app/views/admin/static ./views/admin/static
 COPY app ./app
 COPY config.yaml ./
 COPY .env* ./
+COPY healthcheck.py ./
 
 # Copy migration scripts
 COPY migrate_sqlite_to_postgres.py ./
@@ -86,27 +87,7 @@ EXPOSE 8000
 
 # Health check with PostgreSQL connectivity
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "
-import asyncio
-import asyncpg
-async def test():
-    try:
-        conn = await asyncpg.connect(
-            user='${POSTGRES_USER:-mcp_user}',
-            password='${POSTGRES_PASSWORD:-mcp_password}',
-            host='${POSTGRES_HOST:-postgres}',
-            port=${POSTGRES_PORT:-5432},
-            database='${POSTGRES_DB:-mcp_db}'
-        )
-        await conn.fetchval('SELECT 1')
-        await conn.close()
-        print('PostgreSQL connection successful')
-        return True
-    except Exception as e:
-        print(f'PostgreSQL connection failed: {e}')
-        return False
-asyncio.run(test())
-" || exit 1
+    CMD python healthcheck.py || exit 1
 
 # Start the application using uvicorn
 CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

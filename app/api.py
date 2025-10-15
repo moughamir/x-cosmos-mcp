@@ -1,32 +1,26 @@
-import asyncio
-import datetime
-import json
 import logging
 from contextlib import asynccontextmanager
-from typing import Any, Dict, List
+from typing import Dict, List
 
-import asyncpg
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect, APIRouter
+from fastapi import APIRouter, FastAPI, HTTPException, Request, WebSocket
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import settings
-from .pipeline import MultiModelSEOManager, set_websocket_manager, TaskType
+from .pipeline import MultiModelSEOManager, TaskType, set_websocket_manager
 from .utils.db import (
     get_all_products,
+    get_change_log,
+    get_db_schema,
+    get_pipeline_runs,
     get_product_details,
-    update_product_details,
     get_products_batch,
     get_products_for_review,
-    get_db_schema,
-    get_change_log,
-    mark_as_reviewed,
     log_change,
-    get_pipeline_runs,
+    mark_as_reviewed,
     update_database_schema,
+    update_product_details,
 )
-from .utils.db_migrate import migrate_schema
-
 from .utils.ollama_manager import list_ollama_models, pull_ollama_model
 
 # Import worker pool for initialization
@@ -79,12 +73,13 @@ async def lifespan(app: FastAPI):
     # Startup
     try:
         # Update database schema
-        await update_database_schema(settings.paths.database)
+        await update_database_schema()
         logging.info("Database schema updated successfully")
 
-        # Run migrations for additional tables (e.g., pipeline_runs)
-        await migrate_schema(settings.paths.database)
-        logging.info("Database migrations applied successfully")
+        # Initialize database connection pool
+        from .utils.db import init_db_pool
+        await init_db_pool()
+        logging.info("Database connection pool initialized successfully")
 
         # Define task handlers
         manager = MultiModelSEOManager()
@@ -102,7 +97,7 @@ async def lifespan(app: FastAPI):
         )
 
         # Test database connection by fetching products
-        products = await get_all_products(settings.paths.database)
+        products = await get_all_products()
         logging.info(f"Database connection successful. Found {len(products)} products.")
     except Exception as e:
         logging.error(f"Startup error: {e}", exc_info=True)
@@ -124,7 +119,7 @@ api_router = APIRouter(prefix="/api")
 async def get_products():
     """Get all products from the database."""
     try:
-        products = await get_all_products(settings.paths.database)
+        products = await get_all_products()
         return {"products": [dict(product) for product in products]}
     except Exception as e:
         logging.error(f"Error fetching products: {e}", exc_info=True)
@@ -135,7 +130,7 @@ async def get_products():
 async def get_products_batch_endpoint(limit: int = 10):
     """Get products for batch processing."""
     try:
-        products = await get_products_batch(settings.paths.database, limit)
+        products = await get_products_batch(limit)
         return {"products": [dict(product) for product in products]}
     except Exception as e:
         logging.error(f"Error fetching products batch: {e}", exc_info=True)
@@ -146,7 +141,7 @@ async def get_products_batch_endpoint(limit: int = 10):
 async def get_products_for_review_endpoint(limit: int = 10):
     """Get products that need review (low confidence scores)."""
     try:
-        products = await get_products_for_review(settings.paths.database, limit)
+        products = await get_products_for_review(limit)
         return {"products": [dict(product) for product in products]}
     except Exception as e:
         logging.error(f"Error fetching products for review: {e}", exc_info=True)
@@ -157,7 +152,7 @@ async def get_products_for_review_endpoint(limit: int = 10):
 async def get_product(product_id: int):
     """Get specific product details and change history."""
     try:
-        result = await get_product_details(settings.paths.database, product_id)
+        result = await get_product_details(product_id)
         if not result["product"]:
             raise HTTPException(status_code=404, detail="Product not found")
 
@@ -174,77 +169,47 @@ async def get_product(product_id: int):
 
 @api_router.post("/products/{product_id}/update")
 async def update_product(product_id: int, updates: dict):
-    """Update product details."""
+    """Update product details or create if not exists."""
     try:
-        # Log the changes before updating
-        result = await get_product_details(settings.paths.database, product_id)
-        if not result["product"]:
-            raise HTTPException(status_code=404, detail="Product not found")
+        # Get original product data for logging if it exists
+        original_product_details = await get_product_details(product_id)
+        original_product = original_product_details["product"]
 
-        product = dict(result["product"])
+        # Update or create the product
+        await update_product_details(product_id, **updates)
 
         # Log changes for each field being updated
         for field, new_value in updates.items():
-            if field in product and product[field] != new_value:
+            # Only log if the field existed and changed, or if it's a new field being set
+            if original_product and field in original_product and original_product[field] != new_value:
                 await log_change(
-                    settings.paths.database,
                     product_id,
                     field,
-                    product[field],
+                    original_product[field],
                     new_value,
                     "api_update"
                 )
+            elif not original_product and new_value is not None: # New product, log all fields being set
+                 await log_change(
+                    product_id,
+                    field,
+                    None,
+                    new_value,
+                    "api_create"
+                )
 
-        # Update the product
-        await update_product_details(settings.paths.database, product_id, **updates)
-
-        return {"message": "Product updated successfully"}
-    except HTTPException:
-        raise
+        return {"message": "Product updated/created successfully"}
     except Exception as e:
-        logging.error(f"Error updating product {product_id}: {e}", exc_info=True)
+        logging.error(f"Error updating/creating product {product_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @api_router.get("/schema")
-async def get_db_schema():
+async def get_db_schema_endpoint():
     """Get database schema information."""
     try:
-        async with asyncpg.connect(
-            user=settings.postgres.user,
-            password=settings.postgres.password,
-            host=settings.postgres.host,
-            port=settings.postgres.port,
-            database=settings.postgres.database
-        ) as conn:
-            # Get table names
-            tables = [row[0] for row in await conn.fetch(
-                "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"
-            )]
-
-            schema = []
-            # Exclude system tables that might cause issues
-            exclude_tables = {'sqlite_sequence', 'sqlite_stat1', 'sqlite_stat4', 'products_fts_data', 'products_fts_idx', 'products_fts_docsize', 'products_fts_config'}
-
-            for table_name in tables:
-                if table_name in exclude_tables:
-                    continue
-
-                try:
-                    columns = await conn.fetch(
-                        "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = $1 ORDER BY ordinal_position",
-                        table_name
-                    )
-                    schema.append({
-                        "name": table_name,
-                        "columns": [{"name": col[0], "type": col[1]} for col in columns]
-                    })
-                except Exception as e:
-                    # Skip tables that cause issues
-                    logging.warning(f"Skipping table {table_name} due to error: {e}")
-                    continue
-
-            return {"schema": schema}
+        schema = await get_db_schema()
+        return {"schema": schema}
     except Exception as e:
         logging.error(f"Error fetching database schema: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -254,7 +219,7 @@ async def get_db_schema():
 async def get_changes(limit: int = 100):
     """Get change log."""
     try:
-        changes = await get_change_log(settings.paths.database, limit)
+        changes = await get_change_log(limit)
         return {"changes": [dict(change) for change in changes]}
     except Exception as e:
         logging.error(f"Error fetching changes: {e}", exc_info=True)
@@ -265,7 +230,7 @@ async def get_changes(limit: int = 100):
 async def mark_changes_reviewed(product_id: int):
     """Mark all changes for a product as reviewed."""
     try:
-        await mark_as_reviewed(settings.paths.database, product_id)
+        await mark_as_reviewed(product_id)
         return {"message": "Changes marked as reviewed"}
     except Exception as e:
         logging.error(f"Error marking changes as reviewed for product {product_id}: {e}", exc_info=True)
@@ -273,10 +238,10 @@ async def mark_changes_reviewed(product_id: int):
 
 
 @api_router.get("/pipeline/runs")
-async def get_pipeline_runs(limit: int = 100):
+async def get_pipeline_runs_endpoint(limit: int = 100):
     """Get pipeline run history."""
     try:
-        runs = await get_pipeline_runs(settings.paths.database, limit)
+        runs = await get_pipeline_runs(limit)
         return {"runs": [dict(run) for run in runs]}
     except Exception as e:
         logging.error(f"Error fetching pipeline runs: {e}", exc_info=True)

@@ -1,32 +1,98 @@
 services:
-  x-backend:
-    build: .
-    volumes:
-      - .:/app
-    depends_on:
-      - ollama
-
-  x-cosmos-mcp-app:
-    extends:
-      service: x-backend
-    command: bash -c "python -c 'import time; time.sleep(10)' && python app/pipeline.py --task meta"
-
-  x-cosmos-msp-api:
-    extends:
-      service: x-backend
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+  # PostgreSQL database
+  postgres:
+    image: postgres:15-alpine
+    container_name: mcp-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mcp_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mcp_password}
+      POSTGRES_DB: ${POSTGRES_DB:-mcp_db}
+      POSTGRES_HOST_AUTH_METHOD: trust
     ports:
-      - "8000:8000"
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 100s
-      retries: 3
-      start_period: 10s
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mcp_user} -d ${POSTGRES_DB:-mcp_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # Ollama for AI model management
   ollama:
-    image: ollama/ollama
+    image: ollama/ollama:latest
+    container_name: mcp-ollama
+    restart: unless-stopped
     ports:
       - "11434:11434"
     volumes:
-      - ./data/ollama.models:/root/.ollama
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # MCP Admin API service
+  mcp-api:
+    build: .
+    container_name: mcp-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-mcp_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mcp_password}
+      POSTGRES_DB: ${POSTGRES_DB:-mcp_db}
+      OLLAMA_HOST: http://ollama:11434
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - ./migrate_sqlite_to_postgres.py:/app/migrate_sqlite_to_postgres.py:ro
+      - ./migrate_to_postgres.py:/app/migrate_to_postgres.py:ro
+      - ./docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh
+    entrypoint: ["/usr/local/bin/docker-entrypoint.sh"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/products"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # MCP Worker service (if needed, otherwise remove)
+  mcp-worker:
+    build: .
+    container_name: mcp-worker
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-mcp_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mcp_password}
+      POSTGRES_DB: ${POSTGRES_DB:-mcp_db}
+      OLLAMA_HOST: http://ollama:11434
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+    command: tail -f /dev/null # Placeholder, replace with actual worker command
+
+volumes:
+  postgres_data:
+    driver: local
+  ollama_data:
+    driver: local
+
+networks:
+  default:
+    name: mcp-network

@@ -77,6 +77,10 @@ class Postgres(BaseModel):
     password: str
     database: str
 
+class Workers(BaseModel):
+    max_workers: int
+    timeout: int
+
 class Settings(BaseSettings):
     ollama: Ollama = Ollama()
     models: Models

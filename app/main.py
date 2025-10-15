@@ -1,4 +1,5 @@
 import uvicorn
+
 from .api import app
 from .utils.logging_config import setup_logging
 

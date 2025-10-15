@@ -1,6 +1,7 @@
 from typing import Any, Dict, List
 
 import requests
+
 from ..config import settings
 
 # Use the proper base_url property from Ollama config

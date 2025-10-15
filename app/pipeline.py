@@ -3,7 +3,6 @@ import logging
 import re
 from typing import Any, Dict, List
 
-import aiosqlite
 import httpx
 import jinja2
 from bs4 import BeautifulSoup
@@ -12,6 +11,8 @@ from .config import TaskType, settings
 from .utils.db import (
     complete_pipeline_run,
     create_pipeline_run,
+    get_all_products,
+    get_product_details,
     log_change,
     update_pipeline_run,
     update_product_details,
@@ -49,7 +50,6 @@ prompt_env = jinja2.Environment(loader=prompt_loader)
 
 class MultiModelSEOManager:
     def __init__(self):
-        self.db_path = settings.paths.database
         self.ollama_url = (
             settings.ollama.base_url
         )  # Use proper base_url instead of manual construction
@@ -302,9 +302,9 @@ class MultiModelSEOManager:
         """Broadcast pipeline progress update via WebSocket"""
         if websocket_manager:
             try:
-                from utils.db import get_pipeline_runs
+                from .utils.db import get_pipeline_runs
 
-                runs = await get_pipeline_runs(self.db_path, limit=10)
+                runs = await get_pipeline_runs(limit=10)
                 runs_dict = [dict(run) for run in runs]
 
                 await websocket_manager.broadcast(
@@ -336,7 +336,7 @@ class MultiModelSEOManager:
 
         try:
             pipeline_run_id = await create_pipeline_run(
-                self.db_path, task_type.value, len(product_ids)
+                task_type.value, len(product_ids)
             )
 
             results = []
@@ -357,17 +357,15 @@ class MultiModelSEOManager:
             task_futures = []
 
             for product_id in product_ids:
-                async with aiosqlite.connect(self.db_path) as conn:
-                    conn.row_factory = aiosqlite.Row
-                    cursor = await conn.cursor()
-                    await cursor.execute(
-                        "SELECT id, title, body_html, product_type, tags FROM products WHERE id = ?",
-                        (product_id,),
-                    )
-                    product = await cursor.fetchone()
+                product_details = await get_product_details(product_id)
+                product = product_details["product"]
 
                 if product:
-                    product_id, title, body_html, product_type, tags = product
+                    product_id = product["id"]
+                    title = product["title"]
+                    body_html = product["body_html"]
+                    product_type = product["category"]
+                    tags = product["tags"]
                     product_data = {
                         "id": product_id,
                         "title": title,
@@ -407,14 +405,8 @@ class MultiModelSEOManager:
                         )
 
                         # Get original product data for logging
-                        async with aiosqlite.connect(self.db_path) as conn:
-                            conn.row_factory = aiosqlite.Row
-                            cursor = await conn.cursor()
-                            await cursor.execute(
-                                "SELECT title, body_html, tags FROM products WHERE id = ?",
-                                (product_id,),
-                            )
-                            original_product = await cursor.fetchone()
+                        original_product_details = await get_product_details(product_id)
+                        original_product = original_product_details["product"]
 
                         # Update product in DB and log change
                         update_data = {}
@@ -431,11 +423,10 @@ class MultiModelSEOManager:
 
                         if update_data:
                             await update_product_details(
-                                self.db_path, product_id, **update_data
+                                product_id, **update_data
                             )
 
                         await log_change(
-                            self.db_path,
                             product_id,
                             field=task_type.value,
                             old=dict(original_product),
@@ -486,7 +477,6 @@ class MultiModelSEOManager:
 
                 if pipeline_run_id:
                     await update_pipeline_run(
-                        self.db_path,
                         pipeline_run_id,
                         processed_products=processed_count,
                         failed_products=failed_count,
@@ -498,7 +488,7 @@ class MultiModelSEOManager:
             if pipeline_run_id:
                 status = "COMPLETED" if failed_count == 0 else "FAILED"
                 await complete_pipeline_run(
-                    self.db_path, pipeline_run_id, status, processed_count, failed_count
+                    pipeline_run_id, status, processed_count, failed_count
                 )
 
 
@@ -528,10 +518,8 @@ async def main():
 
     product_ids = args.product_ids
     if not product_ids:
-        async with aiosqlite.connect(manager.db_path) as conn:
-            cursor = await conn.cursor()
-            await cursor.execute("SELECT id FROM products LIMIT 10")
-            product_ids = [row[0] for row in await cursor.fetchall()]
+        all_products = await get_all_products()
+        product_ids = [product["id"] for product in all_products[:10]]
 
     print(f"🚀 Starting {task_type.value} for {len(product_ids)} products...")
 
@@ -544,6 +532,10 @@ async def main():
     }
 
     try:
+        print("🔧 Initializing database pool...")
+        from .utils.db import init_db_pool, close_db_pool
+        await init_db_pool()
+
         print("🔧 Initializing worker pool...")
         await initialize_worker_pool(
             max_workers=settings.workers.max_workers, task_handlers=task_handlers
@@ -565,6 +557,8 @@ async def main():
     finally:
         print("🛑 Shutting down worker pool...")
         await shutdown_worker_pool()
+        print("🛑 Closing database pool...")
+        await close_db_pool()
 
 
 if __name__ == "__main__":

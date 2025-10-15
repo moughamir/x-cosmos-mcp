@@ -18,7 +18,7 @@ quantized_models:
 paths:
   database: postgresql://mcp_user:mcp_password@localhost:5432/mcp_db
   log_table: changes_log
-  prompt_dir: ./prompts
+  prompt_dir: ./data/prompts
 
 fields:
   process:
@@ -47,7 +47,7 @@ workers:
   batch_size: 10
 
 postgres:
-  host: localhost
+  host: postgres
   port: 5432
   user: mcp_user
   password: mcp_password
