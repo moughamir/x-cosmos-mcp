@@ -16,7 +16,7 @@ quantized_models:
   qwen2:1.5b: qwen2:0.5b
 
 paths:
-  database: data/sqlite/products.sqlite
+  database: postgresql://mcp_user:mcp_password@localhost:5432/mcp_db
   log_table: changes_log
   prompt_dir: ./prompts
 
@@ -45,6 +45,13 @@ workers:
   timeout: 300
   retry_attempts: 3
   batch_size: 10
+
+postgres:
+  host: localhost
+  port: 5432
+  user: mcp_user
+  password: mcp_password
+  database: mcp_db
 
 model_capabilities:
   capabilities:

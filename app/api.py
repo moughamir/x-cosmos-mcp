@@ -1,9 +1,12 @@
+import asyncio
+import datetime
+import json
 import logging
 from contextlib import asynccontextmanager
-from typing import Dict, List
+from typing import Any, Dict, List
 
-import os
-from fastapi import FastAPI, Request, HTTPException, WebSocket, WebSocketDisconnect, APIRouter
+import asyncpg
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect, APIRouter
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -207,10 +210,17 @@ async def update_product(product_id: int, updates: dict):
 async def get_db_schema():
     """Get database schema information."""
     try:
-        async with aiosqlite.connect(settings.paths.database) as conn:
-            cur = await conn.cursor()
-            await cur.execute("SELECT name FROM sqlite_master WHERE type='table';")
-            tables = [row[0] for row in await cur.fetchall()]
+        async with asyncpg.connect(
+            user=settings.postgres.user,
+            password=settings.postgres.password,
+            host=settings.postgres.host,
+            port=settings.postgres.port,
+            database=settings.postgres.database
+        ) as conn:
+            # Get table names
+            tables = [row[0] for row in await conn.fetch(
+                "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"
+            )]
 
             schema = []
             # Exclude system tables that might cause issues
@@ -221,11 +231,13 @@ async def get_db_schema():
                     continue
 
                 try:
-                    await cur.execute(f"PRAGMA table_info({table_name});")
-                    columns = await cur.fetchall()
+                    columns = await conn.fetch(
+                        "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = $1 ORDER BY ordinal_position",
+                        table_name
+                    )
                     schema.append({
                         "name": table_name,
-                        "columns": [{"name": col[1], "type": col[2]} for col in columns]
+                        "columns": [{"name": col[0], "type": col[1]} for col in columns]
                     })
                 except Exception as e:
                     # Skip tables that cause issues

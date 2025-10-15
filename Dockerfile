@@ -1,4 +1,4 @@
-# Multi-stage Dockerfile for MCP Admin application
+# Multi-stage Dockerfile for MCP Admin application with PostgreSQL
 # Stage 1: Frontend build
 FROM node:20-alpine AS frontend-builder
 
@@ -25,6 +25,7 @@ WORKDIR /app
 # Install system dependencies for building Python packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
+    postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy Python requirements
@@ -36,6 +37,12 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 # Stage 3: Final application image
 FROM python:3.11-slim
+
+# Install PostgreSQL client for health checks
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    postgresql-client \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user for security
 RUN groupadd -r appuser && useradd -r -g appuser appuser
@@ -56,8 +63,12 @@ COPY app ./app
 COPY config.yaml ./
 COPY .env* ./
 
-# Create data directory for SQLite database
-RUN mkdir -p data/sqlite && chown -R appuser:appuser /app
+# Copy migration scripts
+COPY migrate_sqlite_to_postgres.py ./
+COPY migrate_to_postgres.py ./
+
+# Create data directory for any file storage
+RUN mkdir -p data && chown -R appuser:appuser /app
 
 # Set proper ownership
 RUN chown -R appuser:appuser /app
@@ -73,9 +84,29 @@ ENV PATH="/home/appuser/.local/bin:${PATH}"
 # Expose port
 EXPOSE 8000
 
-# Health check
+# Health check with PostgreSQL connectivity
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/api/products || exit 1
+    CMD python -c "
+import asyncio
+import asyncpg
+async def test():
+    try:
+        conn = await asyncpg.connect(
+            user='${POSTGRES_USER:-mcp_user}',
+            password='${POSTGRES_PASSWORD:-mcp_password}',
+            host='${POSTGRES_HOST:-postgres}',
+            port=${POSTGRES_PORT:-5432},
+            database='${POSTGRES_DB:-mcp_db}'
+        )
+        await conn.fetchval('SELECT 1')
+        await conn.close()
+        print('PostgreSQL connection successful')
+        return True
+    except Exception as e:
+        print(f'PostgreSQL connection failed: {e}')
+        return False
+asyncio.run(test())
+" || exit 1
 
 # Start the application using uvicorn
 CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
