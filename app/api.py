@@ -6,16 +6,25 @@ from fastapi import FastAPI, Request, WebSocket
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from .config import settings
-from .pipeline import set_websocket_manager
 from .utils.db import (
     get_all_products,
+    get_product_details,
+    update_product_details,
+    get_products_for_review,
+    mark_as_reviewed,
+    get_change_log,
     update_database_schema,
+    get_db_schema,
+    get_pipeline_runs,
 )
 from .utils.db_migrate import migrate_schema
+from .utils.ollama_manager import list_ollama_models, pull_ollama_model
+from .utils.taxonomy import load_taxonomy, get_top_level_categories
+from .pipeline import MultiModelSEOManager, set_websocket_manager
+from .config import settings, TaskType
 
 # Import worker pool for initialization
-from .worker_pool import initialize_worker_pool, shutdown_worker_pool
+from .worker_pool import initialize_worker_pool, shutdown_worker_pool, get_worker_pool
 
 
 # WebSocket connection manager for real-time updates

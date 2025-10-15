@@ -379,9 +379,9 @@ class MultiModelSEOManager:
 
                     # Submit task to worker pool
                     task_id = await worker_pool.submit_task(
-                        task_type="product_processing",
+                        task_type=task_type.value,
                         data=product_data,
-                        priority=1,  # Higher priority for product processing
+                        priority=1  # Higher priority for product processing
                     )
                     task_futures.append((task_id, product_id))
 
@@ -507,9 +507,6 @@ async def main():
 
     parser = argparse.ArgumentParser(description="Multi-Model SEO Optimizer")
     parser.add_argument(
-        "--db-path", required=False, help="Database file path"
-    )  # db_path is now from settings
-    parser.add_argument(
         "--task", choices=["meta", "content", "keywords", "tags"], required=True
     )
     parser.add_argument(
@@ -518,24 +515,18 @@ async def main():
 
     args = parser.parse_args()
 
-    # Initialize multi-model manager
     manager = MultiModelSEOManager()
 
-    # Map task types
     task_mapping = {
         "meta": TaskType.META_OPTIMIZATION,
         "content": TaskType.CONTENT_REWRITING,
         "keywords": TaskType.KEYWORD_ANALYSIS,
-        "category": TaskType.CATEGORY_NORMALIZATION,
         "tags": TaskType.TAG_OPTIMIZATION,
     }
-
     task_type = task_mapping[args.task]
 
-    # Get product IDs to process
-    if args.product_ids:
-        product_ids = args.product_ids
-    else:
+    product_ids = args.product_ids
+    if not product_ids:
         async with aiosqlite.connect(manager.db_path) as conn:
             cursor = await conn.cursor()
             await cursor.execute("SELECT id FROM products LIMIT 10")
@@ -543,15 +534,22 @@ async def main():
 
     print(f"🚀 Starting {task_type.value} for {len(product_ids)} products...")
 
-    try:
-        # Initialize worker pool before processing
-        print("🔧 Initializing worker pool...")
-        await initialize_worker_pool(max_workers=settings.workers.max_workers)
+    # Define task handlers
+    task_handlers = {
+        TaskType.META_OPTIMIZATION.value: manager.optimize_meta_tags,
+        TaskType.CONTENT_REWRITING.value: manager.rewrite_content,
+        TaskType.KEYWORD_ANALYSIS.value: manager.analyze_keywords,
+        TaskType.TAG_OPTIMIZATION.value: manager.optimize_tags,
+    }
 
-        # Process products
+    try:
+        print("🔧 Initializing worker pool...")
+        await initialize_worker_pool(
+            max_workers=settings.workers.max_workers, task_handlers=task_handlers
+        )
+
         results = await manager.batch_process_products(product_ids, task_type)
 
-        # Print results
         print(
             f"✅ Processed {len([r for r in results if 'error' not in r])} products successfully"
         )
@@ -564,7 +562,6 @@ async def main():
                 )
 
     finally:
-        # Cleanup worker pool
         print("🛑 Shutting down worker pool...")
         await shutdown_worker_pool()
 

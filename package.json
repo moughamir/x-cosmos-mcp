@@ -10,12 +10,15 @@
     "docker:downvolumes": "docker compose down --volumes",
     "build:css": "tailwindcss -i ./views/admin/src/tailwind.css -o ./views/admin/static/css/styles.css",
     "build:js": "esbuild ./views/admin/src/main.ts --bundle --outfile=./views/admin/static/js/main.js --format=esm",
-    "build": "npm run build:css && npm run build:js"
+    "build": "npm run build:css && npm run build:js",
+    "watch": "npm run build && concurrently \"tailwindcss -i ./views/admin/src/tailwind.css -o ./views/admin/static/css/styles.css --watch\" \"esbuild ./views/admin/src/main.ts --bundle --outfile=./views/admin/static/js/main.js --format=esm --watch\""
   },
   "devDependencies": {
     "tailwindcss": "^3.4.1",
     "typescript": "^5.3.3",
-    "esbuild": "^0.19.11"
+    "esbuild": "^0.19.11",
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3"
   },
   "dependencies": {
     "lit": "^3.1.0",
