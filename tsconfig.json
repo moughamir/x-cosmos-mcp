@@ -1,19 +1,30 @@
 {
   "compilerOptions": {
-    "target": "es2020",
-    "module": "es2020",
+    "target": "ES2020",
+    "module": "ES2020",
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": false,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "preserve",
+    "jsxImportSource": "lit",
     "strict": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "experimentalDecorators": true,
     "useDefineForClassFields": false,
-    "outDir": "./admin/static/js",
-    "rootDir": "./admin/static/js"
+    "baseUrl": "./views/admin/src",
+    "paths": {
+      "@/*": ["./*"]
+    }
   },
-  "include": ["./admin/static/js/**/*"],
-  "exclude": ["node_modules", "**/*.js"]
+  "include": ["views/admin/src/**/*"],
+  "exclude": ["node_modules", "dist", "build", "**/*.js"]
 }
