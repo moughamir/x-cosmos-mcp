@@ -1,12 +1,14 @@
-from dataclasses import dataclass, field
-from typing import Any, Optional
-from enum import Enum
 import time
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
+
 
 class WorkerStatus(Enum):
     IDLE = "idle"
     BUSY = "busy"
     ERROR = "error"
+
 
 @dataclass
 class WorkerTask:
@@ -15,6 +17,7 @@ class WorkerTask:
     data: Any
     priority: int = 0
     created_at: float = field(default_factory=time.time)
+
 
 @dataclass
 class WorkerResult:

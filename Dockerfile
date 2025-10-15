@@ -1,4 +1,18 @@
-# Stage 1: Build with dependencies
+# Stage 1: Frontend builder
+FROM node:20-alpine AS frontend-builder
+WORKDIR /app/views/admin
+
+# Copy root package files
+COPY package.json pnpm-lock.yaml ./
+
+# Install pnpm and dependencies
+RUN npm install -g pnpm && pnpm install --frozen-lockfile
+
+# Copy frontend source and build
+COPY views/admin/ .
+RUN pnpm run build
+
+# Stage 2: Build with dependencies
 FROM python:3.11-slim as builder
 
 WORKDIR /app
@@ -24,8 +38,11 @@ COPY --from=builder /wheels /wheels
 # Install Python dependencies from wheels
 RUN pip install --no-cache-dir --no-index --find-links=/wheels /wheels/*
 
+# Copy frontend assets
+COPY --from=frontend-builder /app/views/admin/dist /app/static
+
 # Copy application code
-COPY . .
+COPY app /app/app
 
 # Ensure the database directory exists
 RUN mkdir -p /data

@@ -21,8 +21,6 @@ node_modules/
 build/
 dist/
 
-# Ollama
-ollama_models/
 
 # IDEs
 .vscode/
@@ -32,6 +30,20 @@ ollama_models/
 *.tmp
 *.bak
 .cache/
-data/products.sqlite
-views/admin/static/css/*.css
-views/admin/static/js/*.js
+
+# Data files - ignore contents but not the directories
+data/sqlite/*
+!data/sqlite/.gitkeep
+data/json/*
+!data/json/.gitkeep
+data/ollama.models/*
+!data/ollama.models/.gitkeep
+
+# Frontend build output
+views/admin/static/css/*
+!views/admin/static/css/.gitkeep
+views/admin/static/js/*
+!views/admin/static/js/.gitkeep
+
+# Environment variables
+.env

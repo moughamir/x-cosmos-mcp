@@ -2,12 +2,14 @@ import asyncio
 import logging
 
 from app.pipeline.pipeline import MultiModelSEOManager
-from app.config import TaskType, settings
-from app.worker_pool import initialize_worker_pool, shutdown_worker_pool
+
 from app.api import pipeline_task_queue
+from app.config import settings
 from app.utils.logging_config import setup_logging
+from app.worker_pool import initialize_worker_pool
 
 logger = logging.getLogger(__name__)
+
 
 async def main():
     """Main function for the pipeline worker."""
@@ -26,6 +28,7 @@ async def main():
     while True:
         await asyncio.sleep(1)
 
+
 async def worker(task_queue: asyncio.Queue, manager: MultiModelSEOManager):
     """Worker to process tasks from the queue."""
     while True:
@@ -37,11 +40,14 @@ async def worker(task_queue: asyncio.Queue, manager: MultiModelSEOManager):
 
             logger.info(f"Processing {len(product_ids)} products for task {task_type}")
 
-            await manager.batch_process_products(product_ids, task_type, quantize=quantize)
+            await manager.batch_process_products(
+                product_ids, task_type, quantize=quantize
+            )
 
             task_queue.task_done()
         except Exception as e:
             logger.error(f"Error processing task: {e}", exc_info=True)
+
 
 if __name__ == "__main__":
     asyncio.run(main())

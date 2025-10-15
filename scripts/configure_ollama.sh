@@ -1,15 +1,17 @@
 #!/bin/bash
 
 # Set the OLLAMA_MODELS environment variable to store models in the project directory
-# TODO: Change this path to your desired directory (pwd/data/ollama.models)
-export OLLAMA_MODELS="$(pwd)/data/ollama.models"
+OLLAMA_MODELS_PATH="$(pwd)/data/ollama.models"
 
-echo "OLLAMA_MODELS is set to: $OLLAMA_MODELS"
+# Create a .env file for Docker Compose to use
+echo "OLLAMA_MODELS=${OLLAMA_MODELS_PATH}" > .env
 
-# Ensure the ollama_models directory exists
-mkdir -p "$OLLAMA_MODELS"
+echo "OLLAMA_MODELS is set to: ${OLLAMA_MODELS_PATH}"
 
-# List of models to download from config.yaml
+# Ensure the ollama.models directory exists
+mkdir -p "${OLLAMA_MODELS_PATH}"
+
+# List of models to download, optimized for low-end hardware
 MODELS=(
     "llama3.2:1b-instruct-q4_K_M"
     "gemma3:1b-it-qat"
@@ -17,6 +19,7 @@ MODELS=(
     "llama3.2:1b-instruct-q2_K"
     "gemma3:1b-it-q2_K"
     "qwen2:0.5b"
+    "nomic-embed-text"
 )
 
 echo "Starting Ollama model downloads..."

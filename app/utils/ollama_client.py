@@ -1,7 +1,9 @@
 """
 Ollama API client for MCP
 """
+
 import ollama
+
 
 class OllamaClient:
     """A client for interacting with the Ollama API."""

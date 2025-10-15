@@ -20,10 +20,11 @@ Requirements:
 """
 
 import sqlite3
-from fastapi import FastAPI, Request, HTTPException
+from difflib import HtmlDiff
+
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from difflib import HtmlDiff
 from starlette.middleware.sessions import SessionMiddleware
 
 DB_PATH = "catalogue.sqlite"

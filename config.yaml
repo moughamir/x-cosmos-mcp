@@ -16,7 +16,7 @@ quantized_models:
   qwen2:1.5b: qwen2:0.5b
 
 paths:
-  database: ./products.sqlite
+  database: data/sqlite/products.sqlite
   log_table: changes_log
   prompt_dir: ./prompts
 

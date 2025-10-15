@@ -8,8 +8,8 @@
     "docker:up": "docker compose up ",
     "docker:down": "docker compose down",
     "docker:downvolumes": "docker compose down --volumes",
-    "build:css": "tailwindcss -i ./admin/static/css/tailwind.css -o ./admin/static/css/styles.css",
-    "build:js": "esbuild ./admin/static/js/main.ts --bundle --outfile=./admin/static/js/main.js --format=esm",
+    "build:css": "tailwindcss -i ./views/admin/src/tailwind.css -o ./views/admin/static/css/styles.css",
+    "build:js": "esbuild ./views/admin/src/main.ts --bundle --outfile=./views/admin/static/js/main.js --format=esm",
     "build": "npm run build:css && npm run build:js"
   },
   "devDependencies": {

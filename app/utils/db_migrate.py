@@ -1,7 +1,9 @@
 """
 Database schema migration for MCP.
 """
+
 import aiosqlite
+
 
 async def migrate_schema(db_path: str):
     """Applies all necessary schema migrations to the database."""
@@ -11,7 +13,7 @@ async def migrate_schema(db_path: str):
         # Version 1: Add normalized columns to products table
         await cur.execute("PRAGMA table_info(products)")
         existing_columns = {row[1] for row in await cur.fetchall()}
-        
+
         columns_to_add = [
             ("normalized_title", "TEXT"),
             ("normalized_body_html", "TEXT"),
@@ -26,7 +28,9 @@ async def migrate_schema(db_path: str):
         for col_name, col_type in columns_to_add:
             if col_name not in existing_columns:
                 print(f"Adding column {col_name} to products table.")
-                await cur.execute(f"ALTER TABLE products ADD COLUMN {col_name} {col_type}")
+                await cur.execute(
+                    f"ALTER TABLE products ADD COLUMN {col_name} {col_type}"
+                )
             else:
                 print(f"Column {col_name} already exists in products table.")
 

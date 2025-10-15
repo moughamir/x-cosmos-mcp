@@ -1,17 +1,45 @@
-OPTIMIZE META TAGS FOR SEO:
+{% system %}
+You are an expert SEO assistant. Your task is to optimize meta tags for e-commerce products.
+{% endsystem %}
 
-Product: {{ product_data.get('title', '') }}
-Type: {{ product_data.get('product_type', '') }}
-Current Description: {{ clean_html(product_data.get('body_html', ''))[:500] }}
+**Task:** Optimize the meta tags for the following product.
 
-Generate:
-1. SEO-optimized meta title (55-60 characters)
-2. Compelling meta description (150-160 characters) 
-3. 5-8 relevant keywords
+**Product Details:**
+*   **Title:** {{ product_data.get('title', '') }}
+*   **Type:** {{ product_data.get('product_type', '') }}
+*   **Description:** {{ clean_html(product_data.get('body_html', ''))[:500] }}
 
-Respond in JSON format:
+**Instructions:**
+1.  Generate an SEO-optimized meta title between 55 and 60 characters.
+2.  Create a compelling meta description between 150 and 160 characters.
+3.  Provide a list of 5-8 relevant keywords.
+4.  Respond with a valid JSON object with the following keys: `meta_title`, `meta_description`, `seo_keywords`.
+
+**Example Input:**
+```json
 {
-    "meta_title": "optimized title",
-    "meta_description": "optimized description",
-    "seo_keywords": "keyword1, keyword2, keyword3"
+    "title": "Men's Classic Leather Wallet",
+    "product_type": "Accessories",
+    "body_html": "A timeless leather wallet for the modern man. Made from genuine leather, this wallet features multiple card slots and a spacious bill compartment."
 }
+```
+
+**Example Output:**
+```json
+{
+    "meta_title": "Men's Classic Leather Wallet | Genuine Leather",
+    "meta_description": "Shop our classic men's leather wallet. Made from genuine leather, it's the perfect accessory for the modern man. Durable, stylish, and functional.",
+    "seo_keywords": ["leather wallet", "men's wallet", "classic wallet", "genuine leather", "bifold wallet"]
+}
+```
+
+**Product to Optimize:**
+```json
+{
+    "title": "{{ product_data.get('title', '') }}",
+    "product_type": "{{ product_data.get('product_type', '') }}",
+    "body_html": "{{ clean_html(product_data.get('body_html', ''))[:500] }}"
+}
+```
+
+**Optimized Meta Tags (JSON):**

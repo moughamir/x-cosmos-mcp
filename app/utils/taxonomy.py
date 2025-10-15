@@ -1,15 +1,20 @@
-import os
 import difflib
 import json
-from typing import List, Dict, Optional
+import os
+from typing import Dict, List, Optional
 
 # Use local taxonomy file instead of remote URL
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-TAXONOMY_DIR = os.path.join(PROJECT_ROOT, 'data', 'taxonomy')
-CACHE_PATH = os.path.join(PROJECT_ROOT, '.cache', 'taxonomy_tree_cache.json')
+PROJECT_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
+TAXONOMY_DIR = os.path.join(PROJECT_ROOT, "data", "taxonomy")
+CACHE_PATH = os.path.join(PROJECT_ROOT, ".cache", "taxonomy_tree_cache.json")
+
 
 class TaxonomyNode:
-    def __init__(self, name: str, full_path: str, parent: Optional['TaxonomyNode'] = None):
+    def __init__(
+        self, name: str, full_path: str, parent: Optional["TaxonomyNode"] = None
+    ):
         self.name = name
         self.full_path = full_path
         self.children: Dict[str, TaxonomyNode] = {}
@@ -19,15 +24,18 @@ class TaxonomyNode:
         return {
             "name": self.name,
             "full_path": self.full_path,
-            "children": {name: child.to_dict() for name, child in self.children.items()}
+            "children": {
+                name: child.to_dict() for name, child in self.children.items()
+            },
         }
 
     @classmethod
-    def from_dict(cls, data: Dict, parent: Optional['TaxonomyNode'] = None):
+    def from_dict(cls, data: Dict, parent: Optional["TaxonomyNode"] = None):
         node = cls(data["name"], data["full_path"], parent)
         for child_name, child_data in data["children"].items():
             node.children[child_name] = cls.from_dict(child_data, node)
         return node
+
 
 def load_taxonomy() -> Dict[str, TaxonomyNode]:
     """Loads the Google taxonomy list from local files and builds a hierarchical tree."""
@@ -48,19 +56,19 @@ def load_taxonomy() -> Dict[str, TaxonomyNode]:
 
     for filename in os.listdir(TAXONOMY_DIR):
         if filename.endswith(".txt"):
-            with open(os.path.join(TAXONOMY_DIR, filename), 'r', encoding='utf-8') as f:
+            with open(os.path.join(TAXONOMY_DIR, filename), "r", encoding="utf-8") as f:
                 for line in f.readlines():
                     line = line.strip()
                     if not line or line.startswith("#"):
                         continue
 
-                    parts = line.split(' > ')
+                    parts = line.split(" > ")
                     current_parent: Optional[TaxonomyNode] = None
                     current_path = []
 
                     for i, part in enumerate(parts):
                         current_path.append(part)
-                        full_path = ' > '.join(current_path)
+                        full_path = " > ".join(current_path)
 
                         if full_path not in all_nodes:
                             node = TaxonomyNode(part, full_path, current_parent)
@@ -70,7 +78,7 @@ def load_taxonomy() -> Dict[str, TaxonomyNode]:
                                 current_parent.children[part] = node
                             else:
                                 root_nodes[part] = node
-                        
+
                         current_parent = all_nodes[full_path]
 
     os.makedirs(os.path.dirname(CACHE_PATH), exist_ok=True)
@@ -80,7 +88,10 @@ def load_taxonomy() -> Dict[str, TaxonomyNode]:
     print(f"Built taxonomy tree with {len(root_nodes)} top-level categories.")
     return root_nodes
 
-def find_best_category(raw_category: str, taxonomy_tree: Dict[str, TaxonomyNode]) -> tuple[str, float]:
+
+def find_best_category(
+    raw_category: str, taxonomy_tree: Dict[str, TaxonomyNode]
+) -> tuple[str, float]:
     """Fuzzy matches a local category name to Google's hierarchical taxonomy."""
     if not raw_category:
         return ("Uncategorized", 0.0)
@@ -103,6 +114,7 @@ def find_best_category(raw_category: str, taxonomy_tree: Dict[str, TaxonomyNode]
         best_match_ratio = round(ratio, 3)
 
     return (best_match_path, best_match_ratio)
+
 
 def get_top_level_categories() -> List[str]:
     """Returns a list of top-level category names from the taxonomy tree."""
