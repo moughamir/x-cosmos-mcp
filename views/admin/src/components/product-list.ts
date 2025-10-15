@@ -1,7 +1,7 @@
 import { Router } from '@vaadin/router';
 import { css, html, LitElement } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
-import { Product } from '../types/Product';
+import type { Product } from '../types/Product';
 
 @customElement('product-list')
 export class ProductList extends LitElement {
@@ -18,7 +18,8 @@ export class ProductList extends LitElement {
     super.connectedCallback();
     try {
       const response = await fetch('/api/products');
-      this.products = await response.json();
+      const data = await response.json();
+      this.products = data.products || [];
     } catch (error) {
       console.error('Error fetching products:', error);
     }

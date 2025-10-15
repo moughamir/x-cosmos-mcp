@@ -14,4 +14,3 @@ requests
 beautifulsoup4
 aiohttp
 uvicorn[standard]
-jinja2

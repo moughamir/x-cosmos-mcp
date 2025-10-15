@@ -56,7 +56,7 @@ export class DbManagement extends LitElement {
 
   async fetchDbSchema() {
     try {
-      const response = await fetch('/api/db/schema');
+      const response = await fetch('/api/schema');
       this.dbSchema = await response.json();
     } catch (error) {
       console.error('Error fetching DB schema:', error);

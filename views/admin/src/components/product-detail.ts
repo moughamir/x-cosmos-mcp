@@ -100,8 +100,8 @@ export class ProductDetail extends LitElement {
   async saveChanges() {
     if (!this.productId || !this.editedProduct) return;
     try {
-      const response = await fetch(`/api/products/${this.productId}`, {
-        method: 'PUT',
+      const response = await fetch(`/api/products/${this.productId}/update`, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
