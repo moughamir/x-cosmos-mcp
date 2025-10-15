@@ -1,8 +1,9 @@
-FROM python:3.11-slim
+# Stage 1: Build with dependencies
+FROM python:3.11-slim as builder
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies for building wheels
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     && rm -rf /var/lib/apt/lists/*
@@ -10,7 +11,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip wheel --no-cache-dir --wheel-dir=/wheels -r requirements.txt
+
+# Stage 2: Final image
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Copy wheels from builder stage
+COPY --from=builder /wheels /wheels
+
+# Install Python dependencies from wheels
+RUN pip install --no-cache-dir --no-index --find-links=/wheels /wheels/*
 
 # Copy application code
 COPY . .

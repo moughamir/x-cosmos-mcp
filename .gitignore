@@ -1,29 +1,37 @@
+# Gitignore for Python and Node.js projects
+
 # Python
-.venv/
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.Python
+venv/
+.venv/
+env/
+.env/
+.ipynb_checkpoints
+.pytest_cache
+.mypy_cache
+.dmypy.json
+.ruff_cache
 
-# Editor/IDE
-.vscode/
-.idea/
-
-# OS
-.DS_Store
-
-# Frontend build artifacts
+# Node.js
 node_modules/
+build/
 dist/
-admin/static/js/main.js
-admin/static/css/styles.css
 
-# Database
-*.sqlite
-*.sqlite3
+# Ollama
+ollama_models/
 
-# Logs
+# IDEs
+.vscode/
+
+# Logs and other generated files
 *.log
-*.csv
-products.sqlite-shm
-products.sqlite-wal
+*.tmp
+*.bak
+.cache/
+data/products.sqlite
+views/admin/static/css/*.css
+views/admin/static/js/*.js

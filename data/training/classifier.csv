@@ -1,0 +1,2 @@
+input, output
+{title: "Acme Headlamp Model X100",body_html: "<p>200 lumens... battery included</p>",tags: "lamp, headlamp",product_type: "lamp"},{title: "Acme X100 Rechargeable Headlamp — 200 lumens",body_html: "<p>200 lumens brightness. Rechargeable battery included. Lightweight.</p>",tags: ["headlamp","rechargeable","200-lumen", "Acme"],category: "Sporting Goods > Outdoor Recreation > Camping & Hiking > Camping Lights & Lanterns",confidence: 0.90}
