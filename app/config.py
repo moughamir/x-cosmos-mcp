@@ -1,10 +1,7 @@
-from __future__ import annotations
-import os
-from enum import Enum
-from typing import Dict, List
+from pydantic_settings import BaseSettings, SettingsConfigDict, YamlConfigSettingsSource
 from pydantic import BaseModel, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from app.utils.yaml_config import YamlConfigSettingsSource
+from typing import ClassVar, List, Dict, Any
+from enum import Enum
 
 class TaskType(Enum):
     META_OPTIMIZATION = "meta_optimization"
@@ -13,6 +10,25 @@ class TaskType(Enum):
     SCHEMA_ANALYSIS = "schema_analysis"
     CATEGORY_NORMALIZATION = "category_normalization"
     TAG_OPTIMIZATION = "tag_optimization"
+
+class ModelConfig(BaseModel):
+    tasks: List[TaskType]
+    description: str
+    max_tokens: int
+
+    @field_validator('tasks', mode='before')
+    @classmethod
+    def convert_tasks_to_enum(cls, v):
+        """Convert list of strings to TaskType enums"""
+        if isinstance(v, list):
+            return [TaskType(task_str) for task_str in v]
+        return v
+
+class ModelCapabilities(BaseModel):
+    capabilities: Dict[str, ModelConfig]
+    fallback_order: List[str]
+
+import os
 
 class Ollama(BaseModel):
     host: str = os.getenv("OLLAMA_HOST", "http://localhost").rstrip('/')
@@ -38,8 +54,6 @@ class Models(BaseModel):
     concurrency: int
     batch_size: int
     timeout: int
-    quantize: bool = False
-    quantized_models: Dict[str, str] = {}
 
 class Paths(BaseModel):
     database: str
@@ -62,23 +76,6 @@ class Workers(BaseModel):
     timeout: int
     retry_attempts: int
     batch_size: int
-
-class ModelConfig(BaseModel):
-    tasks: List[TaskType]
-    description: str
-    max_tokens: int
-
-    @field_validator('tasks', mode='before')
-    @classmethod
-    def convert_tasks_to_enum(cls, v):
-        """Convert list of strings to TaskType enums"""
-        if isinstance(v, list):
-            return [TaskType(task_str) for task_str in v]
-        return v
-
-class ModelCapabilities(BaseModel):
-    capabilities: Dict[str, ModelConfig]
-    fallback_order: List[str]
 
 class Settings(BaseSettings):
     ollama: Ollama = Ollama()

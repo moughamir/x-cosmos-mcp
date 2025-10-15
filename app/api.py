@@ -11,24 +11,17 @@ from pathlib import Path
 import asyncio
 import json
 import aiosqlite
-from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseCallNext
 
-# Add the parent directory to the Python path
-sys.path.append(str(Path(__file__).parent.parent))
-
-# Import after path setup
-# Database and utility imports
-from utils.db import (
+from .utils.db import (
     get_all_products, get_product_details, update_product_details,
     get_products_for_review, mark_as_reviewed, get_change_log, update_database_schema, get_db_schema, get_pipeline_runs
 )
-from utils.db_migrate import migrate_schema
-from utils.ollama_manager import list_ollama_models, pull_ollama_model
-from app.config import settings, TaskType
-from app.worker_pool import initialize_worker_pool, shutdown_worker_pool, get_worker_pool
-
-# Create a global queue for pipeline tasks
-pipeline_task_queue = asyncio.Queue()
+from .utils.db_migrate import migrate_schema
+from .utils.ollama_manager import list_ollama_models, pull_ollama_model
+from .pipeline import MultiModelSEOManager
+from .config import settings, TaskType
+# Import worker pool for initialization
+from .worker_pool import initialize_worker_pool, shutdown_worker_pool
 
 # WebSocket connection manager for real-time updates
 class ConnectionManager:
@@ -65,7 +58,7 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 # Import the pipeline module to set up WebSocket broadcasting
-from pipeline import set_websocket_manager
+from .pipeline import set_websocket_manager
 
 # Set up WebSocket manager for pipeline broadcasting
 set_websocket_manager(manager)
@@ -99,23 +92,11 @@ async def lifespan(app: FastAPI):
     await shutdown_worker_pool()
     logging.info("Worker pool shutdown complete")
 
-class ErrorHandlingMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next: RequestResponseCallNext):
-        try:
-            return await call_next(request)
-        except Exception as e:
-            logging.error(f"Unhandled exception: {e}", exc_info=True)
-            return JSONResponse(
-                status_code=500,
-                content={"detail": "Internal Server Error"},
-            )
-
 # Initialize FastAPI app with lifespan
 app = FastAPI(lifespan=lifespan)
-app.add_middleware(ErrorHandlingMiddleware)
 
 # Mount static files
-app.mount("/static", StaticFiles(directory="admin/static"), name="static")
+app.mount("/static", StaticFiles(directory="../views/admin/static"), name="static")
 
 @app.get("/health")
 async def health_check():
@@ -143,7 +124,6 @@ class ModelPullRequest(BaseModel):
 class PipelineRunRequest(BaseModel):
     task_type: TaskType
     product_ids: Optional[List[int]] = None
-    quantize: bool = False
 
 @app.get("/api/products")
 async def get_products():
@@ -162,6 +142,7 @@ async def get_product(product_id: int):
             raise HTTPException(status_code=404, detail="Product not found")
         return details
     except HTTPException as he:
+        raise he
     except Exception as e:
         logging.error(f"Error fetching product details for ID {product_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
@@ -190,7 +171,7 @@ async def get_changes(limit: int = 100):
 async def get_ollama_models():
     """Get available Ollama models"""
     try:
-        models = await list_ollama_models()+
+        models = await list_ollama_models()
         return {"models": models, "status": "connected"}
     except Exception as e:
         logging.error(f"Error fetching Ollama models: {e}", exc_info=True)
@@ -208,8 +189,8 @@ class BatchProcessRequest(BaseModel):
     batch_size: Optional[int] = None
 
 @app.post("/api/pipeline/run")
-async def run_pipeline_endpoint(request: PipelineRunRequest):
-    """Run pipeline processing for products"""
+    from .worker_pool import get_worker_pool
+
     try:
         if not request.product_ids:
             # Fetch all product IDs if none are specified
@@ -218,28 +199,26 @@ async def run_pipeline_endpoint(request: PipelineRunRequest):
         else:
             product_ids = request.product_ids
 
-        # Put the task on the queue
-        await pipeline_task_queue.put({
-            "product_ids": product_ids,
-            "task_type": request.task_type,
-            "quantize": request.quantize,
-        })
+        # Initialize manager and run pipeline
+        manager = MultiModelSEOManager()
 
+        # Run the pipeline asynchronously
+        pipeline_task = asyncio.create_task(
+            manager.batch_process_products(product_ids, request.task_type)
+        )
+
+        # Store the task reference for potential cancellation
+        # For now, we'll just start it and return immediately
         return {
-            "status": "queued",
+            "status": "started",
             "task_type": request.task_type.value,
             "product_count": len(product_ids),
-            "message": f"Pipeline {request.task_type.value} queued for {len(product_ids)} products"
+            "message": f"Pipeline {request.task_type.value} started for {len(product_ids)} products"
         }
 
     except Exception as e:
         logging.error(f"Error starting pipeline: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
-
-@app.get("/api/pipeline/queue-status")
-async def get_pipeline_queue_status():
-    """Get the status of the pipeline queue."""
-    return {"queue_size": pipeline_task_queue.qsize()}
 
 @app.post("/api/batch/process")
 async def batch_process_endpoint(request: BatchProcessRequest):
@@ -322,7 +301,7 @@ async def batch_process_endpoint(request: BatchProcessRequest):
 @app.get("/api/workers/status")
 async def get_worker_status():
     """Get current worker pool status"""
-    from worker_pool import get_worker_pool
+    from .worker_pool import get_worker_pool
 
     try:
         worker_pool = get_worker_pool()
@@ -375,6 +354,7 @@ async def get_prompt_content(prompt_name: str):
             content = f.read()
         return {"name": prompt_name, "content": content}
     except HTTPException as he:
+        raise he
     except Exception as e:
         logging.error(f"Error fetching prompt content for {prompt_name}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
@@ -439,4 +419,4 @@ async def websocket_pipeline_progress(websocket: WebSocket):
 
 @app.get("/{catchall:path}")
 async def serve_frontend(request: Request):
-    return FileResponse("admin/templates/index.html")
+    return FileResponse("../views/admin/templates/index.html")

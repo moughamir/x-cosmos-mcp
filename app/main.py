@@ -1,7 +1,7 @@
 import uvicorn
-from app.utils.logging_config import setup_logging
+from utils.logging_config import setup_logging
 
-from app.api import app
+from api import app
 
 if __name__ == "__main__":
     setup_logging()

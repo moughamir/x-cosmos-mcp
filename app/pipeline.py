@@ -7,12 +7,12 @@ from enum import Enum
 import requests
 from bs4 import BeautifulSoup
 import aiosqlite
-from utils.db import log_change, update_product_details, create_pipeline_run, update_pipeline_run, complete_pipeline_run
-from utils.category_normalizer import normalize_categories
-from config import settings, TaskType
+from .utils.db import log_change, update_product_details, create_pipeline_run, update_pipeline_run, complete_pipeline_run
+from .utils.category_normalizer import normalize_categories
+from .config import settings, TaskType
 
 # Import worker pool initialization functions
-from worker_pool import get_worker_pool, initialize_worker_pool, shutdown_worker_pool
+from .worker_pool import get_worker_pool, initialize_worker_pool, shutdown_worker_pool
 
 # WebSocket manager for real-time updates (imported dynamically to avoid circular imports)
 websocket_manager = None
@@ -313,7 +313,7 @@ class MultiModelSEOManager:
         """Broadcast pipeline progress update via WebSocket"""
         if websocket_manager:
             try:
-                from utils.db import get_pipeline_runs
+                from .utils.db import get_pipeline_runs
                 runs = await get_pipeline_runs(self.db_path, limit=10)
                 runs_dict = [dict(run) for run in runs]
 

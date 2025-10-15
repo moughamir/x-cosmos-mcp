@@ -1,0 +1,26 @@
+# Use a Node.js base image for building
+FROM node:20-alpine AS admin_frontend_builder
+
+# Set working directory inside the container
+WORKDIR /app/admin
+
+# Copy package.json and pnpm-lock.yaml from the project root to leverage Docker cache
+# Assuming these files are in the root of the monorepo/project
+COPY package.json pnpm-lock.yaml ./
+
+# Install pnpm globally
+RUN npm install -g pnpm
+
+# Install dependencies for the frontend project
+RUN pnpm install --frozen-lockfile
+
+# Copy the admin frontend source code
+COPY views/admin/ ./
+
+# Build the frontend project
+# The build output will typically be in a 'dist' or 'build' directory
+RUN pnpm run build
+
+# The build artifacts will be available in the /app/admin/dist (or similar) directory
+# This stage doesn't need to expose ports or define a CMD, as its sole purpose is to build.
+# The artifacts can then be copied to another image (e.g., an Nginx image) for serving.
