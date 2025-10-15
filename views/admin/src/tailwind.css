@@ -1,3 +1,24 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer components {
+  .header {
+    @apply bg-slate-900 text-white p-4 flex justify-between items-center;
+  }
+  .header h1 {
+    @apply text-xl font-bold;
+  }
+  .nav {
+    @apply flex gap-4;
+  }
+  .nav-link {
+    @apply px-3 py-2 rounded-md bg-slate-800 text-white no-underline transition-colors;
+  }
+  .nav-link:hover {
+    @apply bg-slate-700;
+  }
+  .main-content {
+    @apply flex-1 p-4 bg-slate-50;
+  }
+}

@@ -5,8 +5,6 @@
   "description": "Admin UI for MCP",
   "scripts": {
     "docker:upbuild": "docker compose up --build",
-    "docker:up": "docker compose up ",
-    "docker:down": "docker compose down",
     "docker:downvolumes": "docker compose down --volumes",
     "build:css": "tailwindcss -i ./views/admin/src/tailwind.css -o ./views/admin/static/css/styles.css",
     "build:js": "esbuild ./views/admin/src/main.ts --bundle --outfile=./views/admin/static/js/main.js --format=esm",

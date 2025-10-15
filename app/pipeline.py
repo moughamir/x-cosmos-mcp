@@ -7,6 +7,8 @@ import aiosqlite
 import httpx
 import jinja2
 from bs4 import BeautifulSoup
+
+from .config import TaskType, settings
 from .utils.db import (
     complete_pipeline_run,
     create_pipeline_run,
@@ -14,7 +16,6 @@ from .utils.db import (
     update_pipeline_run,
     update_product_details,
 )
-from .config import TaskType, settings
 from .utils.tokenizer import truncate_text_to_tokens
 
 # Import worker pool initialization functions

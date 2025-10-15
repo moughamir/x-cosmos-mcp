@@ -15,52 +15,6 @@ import './components/prompt-management';
 
 @customElement('mcp-admin')
 export class McpAdmin extends LitElement {
-  static styles = css`
-    :host {
-      display: flex;
-      flex-direction: column;
-      min-height: 100vh;
-      font-family: system-ui, -apple-system, sans-serif;
-    }
-
-    .header {
-      background-color: #0f172a; /* slate-900 */
-      color: white;
-      padding: 1rem;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .header h1 {
-      font-size: 1.25rem; /* text-xl */
-      font-weight: 700; /* font-bold */
-    }
-
-    .nav {
-      display: flex;
-      gap: 1rem; /* gap-4 */
-    }
-
-    .nav-link {
-      padding: 0.5rem 0.75rem; /* px-3 py-2 */
-      border-radius: 0.375rem; /* rounded-md */
-      background-color: #1e293b; /* slate-800 */
-      color: white;
-      text-decoration: none;
-      transition: background-color 0.15s ease-in-out; /* transition-colors */
-    }
-
-    .nav-link:hover {
-      background-color: #334155; /* slate-700 */
-    }
-
-    .main-content {
-      flex: 1;
-      padding: 1rem; /* p-4 */
-      background-color: #f8fafc; /* slate-50 */
-    }
-  `;
 
   firstUpdated() {
     const router = new Router(this.shadowRoot?.querySelector('#outlet'));

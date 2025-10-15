@@ -50,6 +50,7 @@ RUN mkdir -p /data
 # Set environment variables
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
+ENV STATIC_DIR=/app/static
 
 # Default command (can be overridden in docker-compose)
 CMD ["tail", "-f", "/dev/null"]

@@ -2,29 +2,21 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Dict, List
 
-from fastapi import FastAPI, Request, WebSocket
+import os
+from fastapi import FastAPI, Request, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from .config import settings
+from .pipeline import MultiModelSEOManager, set_websocket_manager, TaskType
 from .utils.db import (
     get_all_products,
-    get_product_details,
-    update_product_details,
-    get_products_for_review,
-    mark_as_reviewed,
-    get_change_log,
     update_database_schema,
-    get_db_schema,
-    get_pipeline_runs,
 )
 from .utils.db_migrate import migrate_schema
-from .utils.ollama_manager import list_ollama_models, pull_ollama_model
-from .utils.taxonomy import load_taxonomy, get_top_level_categories
-from .pipeline import MultiModelSEOManager, set_websocket_manager
-from .config import settings, TaskType
 
 # Import worker pool for initialization
-from .worker_pool import initialize_worker_pool, shutdown_worker_pool, get_worker_pool
+from .worker_pool import initialize_worker_pool, shutdown_worker_pool
 
 
 # WebSocket connection manager for real-time updates
@@ -80,8 +72,19 @@ async def lifespan(app: FastAPI):
         await migrate_schema(settings.paths.database)
         logging.info("Database migrations applied successfully")
 
+        # Define task handlers
+        manager = MultiModelSEOManager()
+        task_handlers = {
+            TaskType.META_OPTIMIZATION.value: manager.optimize_meta_tags,
+            TaskType.CONTENT_REWRITING.value: manager.rewrite_content,
+            TaskType.KEYWORD_ANALYSIS.value: manager.analyze_keywords,
+            TaskType.TAG_OPTIMIZATION.value: manager.optimize_tags,
+        }
+
         # Initialize worker pool for parallel processing
-        await initialize_worker_pool(max_workers=settings.workers.max_workers)
+        await initialize_worker_pool(
+            max_workers=settings.workers.max_workers, task_handlers=task_handlers
+        )
         logging.info(
             f"Worker pool initialized with {settings.workers.max_workers} workers"
         )
@@ -100,13 +103,32 @@ async def lifespan(app: FastAPI):
     logging.info("Worker pool shutdown complete")
 
 
-# Initialize FastAPI app with lifespan
+from fastapi import FastAPI, Request, HTTPException, WebSocket, WebSocketDisconnect, APIRouter
+
+# ... (imports remain the same)
+
+# Initialize FastAPI app and API router
 app = FastAPI(lifespan=lifespan)
+api_router = APIRouter(prefix="/api")
 
-# Mount static files
-app.mount("/static", StaticFiles(directory="/app/static"), name="static")
+# ... (lifespan and ConnectionManager remain the same)
 
+@api_router.get("/products")
+async def get_products():
+    # ... (endpoint logic remains the same)
+
+@api_router.get("/products/{product_id}")
+async def get_product(product_id: int):
+    # ... (endpoint logic remains the same)
+
+# ... (move all other @app.get, @app.post, @app.put routes to @api_router)
+
+# Include the API router in the main app
+app.include_router(api_router)
+
+# Mount static files for the frontend
+app.mount("/static", StaticFiles(directory=settings.paths.static_dir), name="static")
 
 @app.get("/{catchall:path}")
 async def serve_frontend(request: Request):
-    return FileResponse("/app/static/index.html")
+    return FileResponse("views/admin/templates/index.html")

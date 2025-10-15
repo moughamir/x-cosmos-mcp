@@ -2,9 +2,9 @@ import asyncio
 import logging
 import time
 import uuid
-from typing import Any, Dict, List, Optional, Callable, Awaitable
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 
-from .worker_task import WorkerStatus, WorkerTask, WorkerResult
+from .worker_task import WorkerResult, WorkerStatus, WorkerTask
 
 logger = logging.getLogger(__name__)
 

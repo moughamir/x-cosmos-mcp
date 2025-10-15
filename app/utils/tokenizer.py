@@ -1,5 +1,7 @@
 import requests
+
 from ..config import settings
+
 
 def count_tokens(text: str, model: str) -> int:
     """Count the number of tokens in a string using the Ollama API."""

@@ -1,8 +1,10 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict, YamlConfigSettingsSource
-from pydantic import BaseModel, field_validator
-from typing import List, Dict, Any, Tuple, Callable
-from enum import Enum
 import os
+from enum import Enum
+from typing import Any, Callable, Dict, List, Tuple
+
+from pydantic import BaseModel, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict, YamlConfigSettingsSource
+
 
 class TaskType(Enum):
     META_OPTIMIZATION = "meta_optimization"
@@ -56,6 +58,7 @@ class Paths(BaseModel):
     database: str
     log_table: str
     prompt_dir: str
+    static_dir: str = "views/admin/static"
 
 class Categories(BaseModel):
     taxonomy_source: str
