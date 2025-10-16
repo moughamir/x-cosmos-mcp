@@ -46,9 +46,10 @@ export default function DatabasePage() {
         }
         const data: { schema: TableSchema[] } = await response.json();
         setSchema(data.schema);
-      } catch (e: any) {
+      } catch (e) {
         console.error('Error fetching schema:', e);
-        toast.error(`Failed to load database schema: ${e.message}`);
+        const errorMessage = e instanceof Error ? e.message : String(e);
+        toast.error(`Failed to load database schema: ${errorMessage}`);
       } finally {
         setIsLoading(false);
       }
@@ -67,9 +68,9 @@ export default function DatabasePage() {
       ) : (
         <div className="space-y-6">
           {schema.map((table) => (
-            <Card key={table.table_name}>
+            <Card key={table.name}>
               <CardHeader>
-                <CardTitle>{table.table_name}</CardTitle>
+                <CardTitle>{table.name}</CardTitle>
               </CardHeader>
               <CardContent>
                 <Table>

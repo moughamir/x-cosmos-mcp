@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, ChangeEvent, FormEvent } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -42,9 +42,10 @@ export default function ModelManagementPage() {
       }
       const data: { models: OllamaModel[] } = await response.json();
       setModels(data.models);
-    } catch (e: any) {
+    } catch (e) {
       console.error('Error fetching Ollama models:', e);
-      toast.error(`Failed to load Ollama models: ${e.message}`);
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      toast.error(`Failed to load Ollama models: ${errorMessage}`);
     } finally {
       setIsLoading(false);
     }
@@ -77,9 +78,10 @@ export default function ModelManagementPage() {
       // Optionally, you could implement a mechanism to stream pull status
       // For now, we just refresh the list after a delay to allow the model to appear
       setTimeout(() => fetchModels(), 5000);
-    } catch (e: any) {
+    } catch (e) {
       console.error('Error pulling model:', e);
-      toast.error(`Failed to pull model: ${e.message}`);
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      toast.error(`Failed to pull model: ${errorMessage}`);
     } finally {
       setIsPulling(false);
     }

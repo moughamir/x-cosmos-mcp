@@ -41,9 +41,10 @@ export default function PipelineManagementPage() {
         }
         const data: { products: Product[] } = await response.json();
         setAllProducts(data.products);
-      } catch (e: any) {
+      } catch (e) {
         console.error('Error fetching all products:', e);
-        toast.error(`Failed to load products: ${e.message}`);
+        const errorMessage = e instanceof Error ? e.message : String(e);
+        toast.error(`Failed to load products: ${errorMessage}`);
       } finally {
         setIsLoadingProducts(false);
       }
