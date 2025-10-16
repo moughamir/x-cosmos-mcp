@@ -1,10 +1,7 @@
 import difflib
 import json
-import logging
 import os
 from typing import Dict, List, Optional
-
-logger = logging.getLogger(__name__)
 
 # Use local taxonomy file instead of remote URL
 PROJECT_ROOT = os.path.dirname(
@@ -12,7 +9,6 @@ PROJECT_ROOT = os.path.dirname(
 )
 TAXONOMY_DIR = os.path.join(PROJECT_ROOT, "data", "taxonomy")
 CACHE_PATH = os.path.join(PROJECT_ROOT, ".cache", "taxonomy_tree_cache.json")
-FLATTENED_PATHS_CACHE: Optional[List[str]] = None
 
 
 class TaxonomyNode:
@@ -41,36 +37,17 @@ class TaxonomyNode:
         return node
 
 
-def _flatten_taxonomy_tree(taxonomy_tree: Dict[str, TaxonomyNode]) -> List[str]:
-    """Helper to flatten the taxonomy tree into a list of all full paths."""
-    all_full_paths = []
-    queue = list(taxonomy_tree.values())
-    while queue:
-        node = queue.pop(0)
-        all_full_paths.append(node.full_path)
-        queue.extend(node.children.values())
-    return all_full_paths
-
-
 def load_taxonomy() -> Dict[str, TaxonomyNode]:
     """Loads the Google taxonomy list from local files and builds a hierarchical tree."""
-    global FLATTENED_PATHS_CACHE
     root_nodes: Dict[str, TaxonomyNode] = {}
-
     if os.path.exists(CACHE_PATH):
-        try:
-            with open(CACHE_PATH, "r") as f:
-                cached_data = json.load(f)
-                for name, data in cached_data.items():
-                    root_nodes[name] = TaxonomyNode.from_dict(data)
-                FLATTENED_PATHS_CACHE = _flatten_taxonomy_tree(root_nodes)
-                logger.info("Loaded taxonomy tree from cache.")
-                return root_nodes
-        except json.JSONDecodeError as e:
-            logger.warning(f"Error decoding taxonomy cache, rebuilding: {e}")
-            # Fall through to rebuild if cache is corrupted
+        with open(CACHE_PATH, "r") as f:
+            cached_data = json.load(f)
+            for name, data in cached_data.items():
+                root_nodes[name] = TaxonomyNode.from_dict(data)
+            return root_nodes
 
-    logger.info("Loading Google Product Taxonomy from local files and building tree...")
+    print("Loading Google Product Taxonomy from local files and building tree...")
     if not os.path.isdir(TAXONOMY_DIR):
         raise FileNotFoundError(f"Taxonomy directory not found at {TAXONOMY_DIR}")
 
@@ -107,8 +84,7 @@ def load_taxonomy() -> Dict[str, TaxonomyNode]:
     with open(CACHE_PATH, "w") as f:
         json.dump({name: node.to_dict() for name, node in root_nodes.items()}, f)
 
-    FLATTENED_PATHS_CACHE = _flatten_taxonomy_tree(root_nodes)
-    logger.info(f"Built taxonomy tree with {len(root_nodes)} top-level categories.")
+    print(f"Built taxonomy tree with {len(root_nodes)} top-level categories.")
     return root_nodes
 
 
@@ -119,18 +95,18 @@ def find_best_category(
     if not raw_category:
         return ("Uncategorized", 0.0)
 
-    global FLATTENED_PATHS_CACHE
-    if FLATTENED_PATHS_CACHE is None:
-        # This should ideally not happen if load_taxonomy is called first
-        # but as a fallback, flatten the tree now.
-        FLATTENED_PATHS_CACHE = _flatten_taxonomy_tree(taxonomy_tree)
-
     best_match_path = "Uncategorized"
     best_match_ratio = 0.0
 
-    matches = difflib.get_close_matches(
-        raw_category, FLATTENED_PATHS_CACHE, n=1, cutoff=0.3
-    )
+    # Flatten the tree to get all full paths for matching
+    all_full_paths = []
+    queue = list(taxonomy_tree.values())
+    while queue:
+        node = queue.pop(0)
+        all_full_paths.append(node.full_path)
+        queue.extend(node.children.values())
+
+    matches = difflib.get_close_matches(raw_category, all_full_paths, n=1, cutoff=0.3)
     if matches:
         ratio = difflib.SequenceMatcher(None, raw_category, matches[0]).ratio()
         best_match_path = matches[0]
