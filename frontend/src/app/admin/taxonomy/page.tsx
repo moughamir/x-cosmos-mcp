@@ -55,8 +55,9 @@ export default function TaxonomyPage() {
         if (data.files.length > 0) {
           setSelectedTaxonomy(data.files[0]);
         }
-      } catch (e: any) {
-        toast.error(`Failed to load taxonomies: ${e.message}`);
+      } catch (e) {
+        const errorMessage = e instanceof Error ? e.message : String(e);
+        toast.error(`Failed to load taxonomies: ${errorMessage}`);
       } finally {
         setIsLoadingList(false);
       }
@@ -74,8 +75,9 @@ export default function TaxonomyPage() {
         if (!response.ok) throw new Error('Failed to fetch taxonomy data');
         const data: { tree: TaxonomyNode[] } = await response.json();
         setTaxonomyData(data.tree);
-      } catch (e: any) {
-        toast.error(`Failed to load taxonomy data: ${e.message}`);
+      } catch (e) {
+        const errorMessage = e instanceof Error ? e.message : String(e);
+        toast.error(`Failed to load taxonomy data: ${errorMessage}`);
         setTaxonomyData([]);
       } finally {
         setIsLoadingTree(false);

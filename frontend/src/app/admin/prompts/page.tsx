@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, ChangeEvent } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
@@ -35,8 +35,9 @@ export default function PromptsPage() {
         if (!response.ok) throw new Error('Failed to fetch prompts');
         const data: { prompts: PromptFile[] } = await response.json();
         setPrompts(data.prompts);
-      } catch (e: any) {
-        toast.error(`Failed to load prompts: ${e.message}`);
+      } catch (e) {
+        const errorMessage = e instanceof Error ? e.message : String(e);
+        toast.error(`Failed to load prompts: ${errorMessage}`);
       } finally {
         setIsLoadingList(false);
       }
@@ -52,8 +53,9 @@ export default function PromptsPage() {
       if (!response.ok) throw new Error('Failed to fetch prompt content');
       const data: PromptContent = await response.json();
       setPromptContent(data.content);
-    } catch (e: any) {
-      toast.error(`Failed to load prompt content: ${e.message}`);
+    } catch (e) {
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      toast.error(`Failed to load prompt content: ${errorMessage}`);
       setPromptContent('');
     } finally {
       setIsLoadingContent(false);
@@ -72,8 +74,9 @@ export default function PromptsPage() {
       });
       if (!response.ok) throw new Error('Failed to save prompt');
       toast.success(`Prompt "${selectedPrompt.name}" saved successfully.`);
-    } catch (e: any) {
-      toast.error(`Failed to save prompt: ${e.message}`);
+    } catch (e) {
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      toast.error(`Failed to save prompt: ${errorMessage}`);
     } finally {
       setIsSaving(false);
     }

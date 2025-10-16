@@ -1,7 +1,7 @@
 export interface ColumnSchema {
   name: string;
   type: string;
-  // Add other relevant column properties if known, e.g., nullable, default, etc.
+  nullable: boolean;
 }
 
 export interface TableSchema {

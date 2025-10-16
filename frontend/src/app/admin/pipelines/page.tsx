@@ -90,9 +90,10 @@ export default function PipelineManagementPage() {
       const result = await response.json();
       toast.success(`Pipeline '${result.task_type}' initiated for ${result.product_count} products.`);
       setSelectedProductIds(new Set());
-    } catch (e: any) {
+    } catch (e) {
       console.error('Error running pipeline:', e);
-      toast.error(`Failed to run pipeline: ${e.message}`);
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      toast.error(`Failed to run pipeline: ${errorMessage}`);
     } finally {
       setIsRunningPipeline(false);
     }

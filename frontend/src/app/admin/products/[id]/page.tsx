@@ -82,10 +82,11 @@ export default function ProductDetailPage() {
         setProduct(data.product);
         setChanges(data.changes || []);
         setEditedProduct(data.product); // Initialize form with product data
-      } catch (e: any) {
+      } catch (e) {
         console.error('Error fetching product details:', e);
-        setError(`Failed to load product details: ${e.message}`);
-        toast.error(`Failed to load product details: ${e.message}`);
+        const errorMessage = e instanceof Error ? e.message : String(e);
+        setError(`Failed to load product details: ${errorMessage}`);
+        toast.error(`Failed to load product details: ${errorMessage}`);
       } finally {
         setIsLoading(false);
       }
@@ -126,10 +127,11 @@ export default function ProductDetailPage() {
       setEditedProduct(updatedData.product);
       toast.success('Product updated successfully!');
 
-    } catch (e: any) {
+    } catch (e) {
       console.error('Error saving changes:', e);
-      setError(`Failed to save changes: ${e.message}`);
-      toast.error(`Failed to save changes: ${e.message}`);
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      setError(`Failed to save changes: ${errorMessage}`);
+      toast.error(`Failed to save changes: ${errorMessage}`);
     } finally {
       setIsSaving(false);
     }

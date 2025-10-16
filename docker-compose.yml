@@ -1,5 +1,5 @@
 services:
-  postgres:
+  mcp_postgres:
     image: postgres:15-alpine
     container_name: mcp-postgres
     restart: unless-stopped
@@ -20,7 +20,7 @@ services:
     networks:
       - mcp-network
 
-  ollama:
+  mcp_ollama:
     image: ollama/ollama:latest
     container_name: mcp-ollama
     restart: unless-stopped
@@ -36,7 +36,7 @@ services:
     networks:
       - mcp-network
 
-  backend:
+  mcp_backend:
     build:
       context: .
       dockerfile: Dockerfile
@@ -45,16 +45,16 @@ services:
     ports:
       - "8000:8000"
     environment:
-      POSTGRES_HOST: postgres
+      POSTGRES_HOST: mcp_postgres
       POSTGRES_PORT: 5432
       POSTGRES_USER: ${POSTGRES_USER:-mcp_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mcp_password}
       POSTGRES_DB: ${POSTGRES_DB:-mcp_db}
-      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_HOST: http://mcp_ollama:11434
     depends_on:
-      postgres:
+      mcp_postgres:
         condition: service_healthy
-      ollama:
+      mcp_ollama:
         condition: service_healthy
     volumes:
       - ./app:/app/app
@@ -62,11 +62,20 @@ services:
       - ./config.yaml:/app/config.yaml:ro
       - ./docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh
     entrypoint: /usr/local/bin/docker-entrypoint.sh
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     networks:
       - mcp-network
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./app
+          target: /app/app
+        - action: rebuild
+          path: ./requirements.txt
+        - action: rebuild
+          path: ./pyproject.toml
 
-  frontend:
+  mcp_frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -75,15 +84,27 @@ services:
     ports:
       - "3000:3000"
     environment:
-      BACKEND_API_URL: http://backend:8000
+      BACKEND_API_URL: http://mcp_backend:8000
     depends_on:
-      - backend
+      - mcp_backend
     volumes:
       - ./frontend:/app
       - /app/node_modules
     command: pnpm dev
     networks:
       - mcp-network
+    develop:
+      watch:
+        - action: sync
+          path: ./frontend/src
+          target: /app/src
+        - action: sync
+          path: ./frontend/public
+          target: /app/public
+        - action: rebuild
+          path: ./frontend/package.json
+        - action: rebuild
+          path: ./frontend/pnpm-lock.yaml
 
 volumes:
   postgres_data:
