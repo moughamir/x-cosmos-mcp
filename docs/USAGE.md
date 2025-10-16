@@ -67,6 +67,25 @@
 
 ---
 
+The following tasks are available:
+
+*   `meta`: Optimize meta title and description.
+*   `content`: Rewrite product content for better SEO.
+*   `keywords`: Perform comprehensive keyword analysis.
+*   `tags`: Analyze and optimize product tags.
+*   `schema_analysis`: Analyze product data against a schema.
+
+### Via API
+
+You can also run the pipeline via the API by sending a POST request to `/api/pipeline/run` with the following JSON payload:
+
+```json
+{
+  "task_type": "meta",
+  "product_ids": [1, 2, 3]
+}
+```
+
 ## API Usage Examples
 
 ### Using cURL

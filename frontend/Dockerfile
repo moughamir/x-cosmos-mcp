@@ -29,7 +29,7 @@ FROM node:20-alpine AS runner
 # Set environment variables
 ENV NODE_ENV=production
 # Set NEXT_TELEMETRY_DISABLED to disable telemetry
-ENV NEXT_TELEMETRY_DISABLED 1
+ENV NEXT_TELEMETRY_DISABLED=1
 
 # Set the working directory
 WORKDIR /app

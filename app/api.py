@@ -7,11 +7,9 @@ from fastapi import (
     BackgroundTasks,
     FastAPI,
     HTTPException,
-    Request,
     WebSocket,
 )
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .pipeline import MultiModelSEOManager, TaskType, set_websocket_manager
@@ -124,6 +122,21 @@ async def lifespan(app: FastAPI):
 
 # Initialize FastAPI app and API router
 app = FastAPI(lifespan=lifespan)
+
+# CORS middleware
+origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 api_router = APIRouter(prefix="/api")
 
 
@@ -359,11 +372,3 @@ async def run_pipeline_endpoint(request: dict, background_tasks: BackgroundTasks
 
 
 app.include_router(api_router)
-
-# Mount static files for the frontend
-app.mount("/static", StaticFiles(directory=settings.paths.static_dir), name="static")
-
-
-@app.get("/{catchall:path}")
-async def serve_frontend(request: Request):
-    return FileResponse("views/admin/templates/index.html")

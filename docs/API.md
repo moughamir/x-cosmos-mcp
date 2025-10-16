@@ -174,7 +174,7 @@ Currently, no authentication is required. All endpoints are publicly accessible.
 }
 ```
 
-**Status:** ❌ Currently failing (500 error)
+**Status:** ✅ Working
 
 ---
 
@@ -228,6 +228,41 @@ Currently, no authentication is required. All endpoints are publicly accessible.
 
 ## Pipeline Management Endpoints
 
+### Run Pipeline
+
+**Endpoint:** `POST /pipeline/run`
+
+**Description:** Run a pipeline task.
+
+The following tasks are available:
+
+*   `meta`: Optimize meta title and description.
+*   `content`: Rewrite product content for better SEO.
+*   `keywords`: Perform comprehensive keyword analysis.
+*   `tags`: Analyze and optimize product tags.
+*   `schema_analysis`: Analyze product data against a schema.
+
+**Request Body:**
+```json
+{
+  "task_type": "meta",
+  "product_ids": [1, 2, 3]
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Pipeline run initiated for meta",
+  "task_type": "meta",
+  "product_count": 3
+}
+```
+
+**Status:** ✅ Working
+
+---
+
 ### Get Pipeline Runs
 
 **Endpoint:** `GET /pipeline/runs?limit=100`
@@ -252,7 +287,7 @@ Currently, no authentication is required. All endpoints are publicly accessible.
 }
 ```
 
-**Status:** ❌ Currently failing (500 error)
+**Status:** ✅ Working
 
 ---
 
