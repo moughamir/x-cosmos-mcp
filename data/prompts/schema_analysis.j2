@@ -1,0 +1,8 @@
+Analyze the following product data and check for any schema compliance issues. The product data is provided in JSON format.
+
+Product Data:
+{{ product_data | tojson }}
+
+Respond with a JSON object containing two keys:
+- "schema_compliance": a boolean indicating if the product data is compliant.
+- "issues": a list of strings describing any compliance issues found. If no issues are found, provide an empty list.

@@ -49,10 +49,12 @@ export class DbManagement extends LitElement {
   @state()
   private dbSchema: TableSchema[] = [];
 
-  async connectedCallback() {
+  override async connectedCallback() {
     super.connectedCallback();
     this.fetchDbSchema();
   }
+
+  override render() {
 
   async fetchDbSchema() {
     try {

@@ -14,6 +14,7 @@ class TaskType(Enum):
     CATEGORY_NORMALIZATION = "category_normalization"
     TAG_OPTIMIZATION = "tag_optimization"
 
+
 class ModelConfig(BaseModel):
     tasks: List[TaskType]
     description: str
@@ -26,23 +27,24 @@ class ModelConfig(BaseModel):
             return [TaskType(task_str) for task_str in v]
         return v
 
+
 class ModelCapabilities(BaseModel):
     capabilities: Dict[str, ModelConfig]
     fallback_order: List[str]
 
+
 class Ollama(BaseModel):
-    host: str = os.getenv("OLLAMA_HOST", "http://localhost").rstrip("/")
+    host: str = "http://localhost"
     port: int = 11434
 
     @property
     def base_url(self) -> str:
-        if ":" in self.host.split("//")[-1]:
-            return self.host
         return f"{self.host}:{self.port}"
 
     @property
     def api_url(self) -> str:
         return f"{self.base_url}/api"
+
 
 class Models(BaseModel):
     title_model: str
@@ -54,32 +56,42 @@ class Models(BaseModel):
     batch_size: int
     timeout: int
 
+
 class Paths(BaseModel):
     database: str
     log_table: str
     prompt_dir: str
     static_dir: str = "views/admin/static"
 
+
 class Categories(BaseModel):
     taxonomy_source: str
     taxonomy_url: str
 
+
 class Fields(BaseModel):
     process: List[str]
+
 
 class Pipeline(BaseModel):
     steps: List[str]
 
+
 class Postgres(BaseModel):
-    host: str
-    port: int
-    user: str
-    password: str
-    database: str
+    host: str = os.getenv("POSTGRES_HOST", "postgres")
+    port: int = int(os.getenv("POSTGRES_PORT", 5432))
+    user: str = os.getenv("POSTGRES_USER", "mcp_user")
+    password: str = os.getenv("POSTGRES_PASSWORD", "mcp_password")
+    database: str = os.getenv("POSTGRES_DB", "mcp_db")
+
 
 class Workers(BaseModel):
     max_workers: int
+    queue_size: int
     timeout: int
+    retry_attempts: int
+    batch_size: int
+
 
 class Settings(BaseSettings):
     ollama: Ollama = Ollama()
@@ -110,5 +122,6 @@ class Settings(BaseSettings):
             dotenv_settings,
             file_secret_settings,
         )
+
 
 settings = Settings()

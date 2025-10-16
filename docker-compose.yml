@@ -18,6 +18,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - mcp-network
 
   # Ollama for AI model management
   ollama:
@@ -33,21 +35,25 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    networks:
+      - mcp-network
 
-  # MCP Admin API service
+  # MCP Admin API service (Python backend)
   mcp-api:
-    build: .
+    build: . # Build context is the root directory for the backend
     container_name: mcp-api
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "8000:8000" # Expose backend API on port 8000
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_USER: ${POSTGRES_USER:-mcp_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mcp_password}
       POSTGRES_DB: ${POSTGRES_DB:-mcp_db}
-      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_HOST: http://ollama:11434 # Backend uses service name to reach Ollama
+      # Environment variable for frontend to know backend API URL
+      FRONTEND_API_URL: http://mcp-api:8000
     depends_on:
       postgres:
         condition: service_healthy
@@ -55,8 +61,7 @@ services:
         condition: service_healthy
     volumes:
       - ./config.yaml:/app/config.yaml:ro
-      - ./migrate_sqlite_to_postgres.py:/app/migrate_sqlite_to_postgres.py:ro
-      - ./migrate_to_postgres.py:/app/migrate_to_postgres.py:ro
+      - ./scripts:/app/scripts:ro
       - ./docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh
     entrypoint: ["/usr/local/bin/docker-entrypoint.sh"]
     healthcheck:
@@ -65,27 +70,46 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+    networks:
+      - mcp-network
 
-  # MCP Worker service (if needed, otherwise remove)
-  mcp-worker:
-    build: .
-    container_name: mcp-worker
-    restart: unless-stopped
-    environment:
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_USER: ${POSTGRES_USER:-mcp_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mcp_password}
-      POSTGRES_DB: ${POSTGRES_DB:-mcp_db}
-      OLLAMA_HOST: http://ollama:11434
+  # Service to pull Ollama models
+  ollama-model-puller:
+    image: alpine/git:latest
+    container_name: ollama-model-puller
     depends_on:
-      postgres:
-        condition: service_healthy
       ollama:
         condition: service_healthy
+    command: >
+      sh -c "
+        apk add --no-cache curl &&
+        curl http://ollama:11434/api/pull -d '{\"name\": \"llama3.2:1b-instruct-q2_K\"}' &&
+        curl http://ollama:11434/api/pull -d '{\"name\": \"gemma3:1b-it-q2_K\"}' &&
+        curl http://ollama:11434/api/pull -d '{\"name\": \"qwen2:0.5b\"}'"
+    networks:
+      - mcp-network
+
+  # MCP Frontend service (Next.js)
+  frontend:
+    build:
+      context: ./frontend # Build context is the frontend directory
+      dockerfile: Dockerfile # Use the Dockerfile within the frontend context
+    container_name: mcp-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000" # Map host port 3000 to container port 3000
+    environment:
+      # Frontend needs to know where the backend API is
+      NEXT_PUBLIC_BACKEND_API_URL: http://mcp-api:8000
+      # WebSocket URL for pipeline progress
+      NEXT_PUBLIC_WS_URL: ws://mcp-api:8000/ws/pipeline-progress
+    depends_on:
+      mcp-api:
+        condition: service_healthy # Frontend depends on backend API being healthy
+    networks:
+      - mcp-network # Ensure frontend is on the same network as backend
     volumes:
-      - ./config.yaml:/app/config.yaml:ro
-    command: tail -f /dev/null # Placeholder, replace with actual worker command
+      - /home/odin/.local/share/pnpm/store:/pnpm-store
 
 volumes:
   postgres_data:
@@ -94,5 +118,5 @@ volumes:
     driver: local
 
 networks:
-  default:
-    name: mcp-network
+  mcp-network:
+    driver: bridge

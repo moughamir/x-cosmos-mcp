@@ -2,7 +2,14 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Dict, List
 
-from fastapi import APIRouter, FastAPI, HTTPException, Request, WebSocket
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    FastAPI,
+    HTTPException,
+    Request,
+    WebSocket,
+)
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -62,6 +69,7 @@ class ConnectionManager:
 
 # Global connection manager instance
 manager = ConnectionManager()
+seo_manager = MultiModelSEOManager()  # Make manager global
 
 
 # Set up WebSocket manager for pipeline broadcasting
@@ -78,20 +86,24 @@ async def lifespan(app: FastAPI):
 
         # Initialize database connection pool
         from .utils.db import init_db_pool
+
         await init_db_pool()
         logging.info("Database connection pool initialized successfully")
 
         # Define task handlers
-        manager = MultiModelSEOManager()
         task_handlers = {
-            TaskType.META_OPTIMIZATION.value: manager.optimize_meta_tags,
-            TaskType.CONTENT_REWRITING.value: manager.rewrite_content,
-            TaskType.KEYWORD_ANALYSIS.value: manager.analyze_keywords,
-            TaskType.TAG_OPTIMIZATION.value: manager.optimize_tags,
+            TaskType.META_OPTIMIZATION.value: seo_manager.optimize_meta_tags,
+            TaskType.CONTENT_REWRITING.value: seo_manager.rewrite_content,
+            TaskType.KEYWORD_ANALYSIS.value: seo_manager.analyze_keywords,
+            TaskType.TAG_OPTIMIZATION.value: seo_manager.optimize_tags,
+            TaskType.CATEGORY_NORMALIZATION.value: seo_manager.normalize_categories,  # ADDED
+            TaskType.SCHEMA_ANALYSIS.value: seo_manager.analyze_schema,
         }
 
         # Initialize worker pool for parallel processing
-        await initialize_worker_pool(max_workers=settings.workers.max_workers, task_handlers=task_handlers)
+        await initialize_worker_pool(
+            max_workers=settings.workers.max_workers, task_handlers=task_handlers
+        )
         logging.info(
             f"Worker pool initialized with {settings.workers.max_workers} workers"
         )
@@ -158,7 +170,7 @@ async def get_product(product_id: int):
 
         return {
             "product": dict(result["product"]),
-            "changes": [dict(change) for change in result["changes"]]
+            "changes": [dict(change) for change in result["changes"]],
         }
     except HTTPException:
         raise
@@ -181,26 +193,24 @@ async def update_product(product_id: int, updates: dict):
         # Log changes for each field being updated
         for field, new_value in updates.items():
             # Only log if the field existed and changed, or if it's a new field being set
-            if original_product and field in original_product and original_product[field] != new_value:
+            if (
+                original_product
+                and field in original_product
+                and original_product[field] != new_value
+            ):
                 await log_change(
-                    product_id,
-                    field,
-                    original_product[field],
-                    new_value,
-                    "api_update"
+                    product_id, field, original_product[field], new_value, "api_update"
                 )
-            elif not original_product and new_value is not None: # New product, log all fields being set
-                 await log_change(
-                    product_id,
-                    field,
-                    None,
-                    new_value,
-                    "api_create"
-                )
+            elif (
+                not original_product and new_value is not None
+            ):  # New product, log all fields being set
+                await log_change(product_id, field, None, new_value, "api_create")
 
         return {"message": "Product updated/created successfully"}
     except Exception as e:
-        logging.error(f"Error updating/creating product {product_id}: {e}", exc_info=True)
+        logging.error(
+            f"Error updating/creating product {product_id}: {e}", exc_info=True
+        )
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -233,7 +243,10 @@ async def mark_changes_reviewed(product_id: int):
         await mark_as_reviewed(product_id)
         return {"message": "Changes marked as reviewed"}
     except Exception as e:
-        logging.error(f"Error marking changes as reviewed for product {product_id}: {e}", exc_info=True)
+        logging.error(
+            f"Error marking changes as reviewed for product {product_id}: {e}",
+            exc_info=True,
+        )
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -256,11 +269,13 @@ async def get_ollama_models():
         # Transform the response to match frontend expectations
         transformed_models = []
         for model in models:
-            transformed_models.append({
-                "name": model.get("name", ""),
-                "size": model.get("size", 0),
-                "modified_at": model.get("modified_at", "")
-            })
+            transformed_models.append(
+                {
+                    "name": model.get("name", ""),
+                    "size": model.get("size", 0),
+                    "modified_at": model.get("modified_at", ""),
+                }
+            )
 
         return transformed_models
     except Exception as e:
@@ -280,19 +295,74 @@ async def pull_ollama_model_endpoint(request: dict):
 
         if "error" in result:
             raise HTTPException(status_code=500, detail=result["error"])
-
-        return {"message": f"Model {model_name} pull initiated successfully", "result": result}
+        return {"message": "Model pulled successfully"}
     except HTTPException:
         raise
     except Exception as e:
         logging.error(f"Error pulling Ollama model: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
 
-# Include the API router in the main app
+
+@app.websocket("/ws/pipeline-progress")
+async def websocket_pipeline_progress(websocket: WebSocket):
+    """WebSocket endpoint for real-time pipeline progress updates."""
+    await manager.connect(websocket, "pipeline_progress")
+    try:
+        while True:
+            # Keep the connection alive and listen for messages
+            data = await websocket.receive_text()
+            # Echo back or handle specific commands if needed
+            await websocket.send_text(f"Echo: {data}")
+    except Exception as e:
+        logging.error(f"WebSocket error: {e}")
+        manager.disconnect(websocket, "pipeline_progress")
+
+
+@api_router.post("/pipeline/run")
+async def run_pipeline_endpoint(request: dict, background_tasks: BackgroundTasks):
+    """Run a pipeline task."""
+    try:
+        task_type = request.get("task_type")
+        product_ids = request.get("product_ids", [])
+
+        if not task_type:
+            raise HTTPException(status_code=400, detail="task_type is required")
+
+        # Convert task_type string to TaskType enum
+        try:
+            from .pipeline import TaskType
+
+            task_type_enum = TaskType(task_type)
+        except ValueError:
+            raise HTTPException(
+                status_code=400, detail=f"Invalid task_type: {task_type}"
+            )
+
+        # Use the global manager and run in background
+        background_tasks.add_task(
+            seo_manager.batch_process_products,
+            product_ids=product_ids,
+            task_type=task_type_enum,
+        )
+
+        return {
+            "message": f"Pipeline run initiated for {task_type}",
+            "task_type": task_type,
+            "product_count": len(product_ids),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error running pipeline: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
 app.include_router(api_router)
 
 # Mount static files for the frontend
 app.mount("/static", StaticFiles(directory=settings.paths.static_dir), name="static")
+
 
 @app.get("/{catchall:path}")
 async def serve_frontend(request: Request):

@@ -58,7 +58,7 @@ export class PromptManagement extends LitElement {
   @state()
   private selectedPrompt: PromptContent | null = null;
 
-  async connectedCallback() {
+  override async connectedCallback() {
     super.connectedCallback();
     this.fetchPromptFiles();
   }
@@ -95,7 +95,7 @@ export class PromptManagement extends LitElement {
     }
   }
 
-  render() {
+  override render() {
     return html`
       <div class="container">
         <h1>Prompt Management</h1>

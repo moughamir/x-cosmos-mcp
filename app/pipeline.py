@@ -8,6 +8,7 @@ import jinja2
 from bs4 import BeautifulSoup
 
 from .config import TaskType, settings
+from .utils.category_normalizer import normalize_categories
 from .utils.db import (
     complete_pipeline_run,
     create_pipeline_run,
@@ -20,11 +21,7 @@ from .utils.db import (
 from .utils.tokenizer import truncate_text_to_tokens
 
 # Import worker pool initialization functions
-from .worker_pool import (
-    get_worker_pool,
-    initialize_worker_pool,
-    shutdown_worker_pool,
-)
+from .worker_pool import get_worker_pool, initialize_worker_pool, shutdown_worker_pool
 
 # WebSocket manager for real-time updates (imported dynamically to avoid circular imports)
 websocket_manager = None
@@ -41,7 +38,6 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
-
 
 
 prompt_loader = jinja2.FileSystemLoader(searchpath=settings.paths.prompt_dir)
@@ -95,10 +91,9 @@ class MultiModelSEOManager:
             logging.error(f"Error checking model availability: {e}")
             return False
 
-    async def optimize_meta_tags(
-        self, product_data: Dict[str, Any], quantize: bool = False
-    ) -> Dict[str, Any]:
+    async def optimize_meta_tags(self, product_data: Dict[str, Any]) -> Dict[str, Any]:
         """Optimize meta title and description using specialized model"""
+        quantize = product_data.get("quantize", False)
         model = await self.get_best_model_for_task(TaskType.META_OPTIMIZATION)
         template = prompt_env.get_template("meta_optimization.j2")
         prompt = template.render(product_data=product_data, clean_html=self._clean_html)
@@ -106,10 +101,9 @@ class MultiModelSEOManager:
             model, prompt, task_type=TaskType.META_OPTIMIZATION, quantize=quantize
         )
 
-    async def rewrite_content(
-        self, product_data: Dict[str, Any], quantize: bool = False
-    ) -> Dict[str, Any]:
+    async def rewrite_content(self, product_data: Dict[str, Any]) -> Dict[str, Any]:
         """Rewrite product content for better SEO"""
+        quantize = product_data.get("quantize", False)
         model = await self.get_best_model_for_task(TaskType.CONTENT_REWRITING)
         template = prompt_env.get_template("rewrite_content.j2")
         prompt = template.render(product_data=product_data, clean_html=self._clean_html)
@@ -117,10 +111,9 @@ class MultiModelSEOManager:
             model, prompt, task_type=TaskType.CONTENT_REWRITING, quantize=quantize
         )
 
-    async def analyze_keywords(
-        self, product_data: Dict[str, Any], quantize: bool = False
-    ) -> Dict[str, Any]:
+    async def analyze_keywords(self, product_data: Dict[str, Any]) -> Dict[str, Any]:
         """Perform comprehensive keyword analysis"""
+        quantize = product_data.get("quantize", False)
         model = await self.get_best_model_for_task(TaskType.KEYWORD_ANALYSIS)
         template = prompt_env.get_template("analyze_keywords.j2")
         prompt = template.render(product_data=product_data, clean_html=self._clean_html)
@@ -128,10 +121,9 @@ class MultiModelSEOManager:
             model, prompt, task_type=TaskType.KEYWORD_ANALYSIS, quantize=quantize
         )
 
-    async def optimize_tags(
-        self, product_data: Dict[str, Any], quantize: bool = False
-    ) -> Dict[str, Any]:
+    async def optimize_tags(self, product_data: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze and optimize product tags using AI"""
+        quantize = product_data.get("quantize", False)
         model = await self.get_best_model_for_task(TaskType.TAG_OPTIMIZATION)
         template = prompt_env.get_template("optimize_tags.j2")
         prompt = template.render(
@@ -142,6 +134,16 @@ class MultiModelSEOManager:
         )
         return await self._call_model_with_fallback(
             model, prompt, task_type=TaskType.TAG_OPTIMIZATION, quantize=quantize
+        )
+
+    async def analyze_schema(self, product_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze product data against a schema"""
+        quantize = product_data.get("quantize", False)
+        model = await self.get_best_model_for_task(TaskType.SCHEMA_ANALYSIS)
+        template = prompt_env.get_template("schema_analysis.j2")
+        prompt = template.render(product_data=product_data)
+        return await self._call_model_with_fallback(
+            model, prompt, task_type=TaskType.SCHEMA_ANALYSIS, quantize=quantize
         )
 
     async def _call_model_with_fallback(
@@ -240,6 +242,7 @@ class MultiModelSEOManager:
             TaskType.CONTENT_REWRITING: ["optimized_title", "optimized_description"],
             TaskType.KEYWORD_ANALYSIS: ["primary_keywords", "long_tail_keywords"],
             TaskType.TAG_OPTIMIZATION: ["optimized_tags", "removed_tags", "added_tags"],
+            TaskType.SCHEMA_ANALYSIS: ["schema_compliance", "issues"],
         }
 
         required = required_fields.get(task_type, [])
@@ -276,6 +279,12 @@ class MultiModelSEOManager:
                 "removed_tags": ["old_irrelevant_tag"],
                 "added_tags": ["new_relevant_tag"],
                 "tag_analysis": "Basic tag optimization applied",
+                "fallback_used": True,
+            }
+        elif task_type == TaskType.SCHEMA_ANALYSIS:
+            return {
+                "schema_compliance": True,
+                "issues": [],
                 "fallback_used": True,
             }
         else:
@@ -316,15 +325,30 @@ class MultiModelSEOManager:
                             "processed": processed_count,
                             "failed": failed_count,
                             "total": total_products,
-                            "percentage": (processed_count / total_products * 100)
-                            if total_products > 0
-                            else 0,
+                            "percentage": (
+                                (processed_count / total_products * 100)
+                                if total_products > 0
+                                else 0
+                            ),
                         },
                     },
                     "pipeline_progress",
                 )
             except Exception as e:
                 logger.warning(f"Failed to broadcast pipeline update: {e}")
+
+    async def normalize_categories(
+        self, product_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Normalizes category for a single product.
+        This is designed to be called by a worker.
+        """
+        product_id = product_data.get("id")
+        if product_id:
+            await normalize_categories(product_ids=[product_id])
+            return {"status": "completed", "normalized_id": product_id}
+        return {"status": "error", "message": "No product ID found"}
 
     async def batch_process_products(
         self, product_ids: List[int], task_type: TaskType, quantize: bool = False
@@ -340,15 +364,6 @@ class MultiModelSEOManager:
             )
 
             results = []
-
-            if task_type == TaskType.CATEGORY_NORMALIZATION:
-                await self._normalize_categories_for_products(product_ids=product_ids)
-                processed_count = len(product_ids)
-                for product_id in product_ids:
-                    results.append(
-                        {"product_id": product_id, "status": "Category normalized"}
-                    )
-                return results
 
             # Get worker pool
             worker_pool = get_worker_pool()
@@ -380,7 +395,7 @@ class MultiModelSEOManager:
                     task_id = await worker_pool.submit_task(
                         task_type=task_type.value,
                         data=product_data,
-                        priority=1  # Higher priority for product processing
+                        priority=1,  # Higher priority for product processing
                     )
                     task_futures.append((task_id, product_id))
 
@@ -422,9 +437,7 @@ class MultiModelSEOManager:
                             update_data["tags"] = result.result["optimized_tags"]
 
                         if update_data:
-                            await update_product_details(
-                                product_id, **update_data
-                            )
+                            await update_product_details(product_id, **update_data)
 
                         await log_change(
                             product_id,
@@ -533,7 +546,8 @@ async def main():
 
     try:
         print("🔧 Initializing database pool...")
-        from .utils.db import init_db_pool, close_db_pool
+        from .utils.db import close_db_pool, init_db_pool
+
         await init_db_pool()
 
         print("🔧 Initializing worker pool...")

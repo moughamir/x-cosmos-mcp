@@ -1,12 +1,12 @@
 import csv
 import io
-from typing import List
+from typing import List, Optional
 
 import aiosqlite
 
 
 async def export_products_to_csv(
-    db_path: str, product_ids: List[int] = None
+    db_path: str, product_ids: Optional[List[int]] = None
 ) -> io.StringIO:
     """Exports product data to a CSV format in a StringIO object."""
     output = io.StringIO()

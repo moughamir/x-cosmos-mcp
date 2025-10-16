@@ -64,10 +64,12 @@ export class ChangeLog extends LitElement {
   @state()
   private changes: ChangeLogEntry[] = [];
 
-  async connectedCallback() {
+  override async connectedCallback() {
     super.connectedCallback();
     this.fetchChangeLog();
   }
+
+  override render() {
 
   async fetchChangeLog() {
     try {

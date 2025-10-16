@@ -1,7 +1,7 @@
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import Any, Optional
 
 
 class WorkerStatus(Enum):
@@ -24,5 +24,5 @@ class WorkerResult:
     task_id: str
     success: bool
     result: Any = None
-    error: str = None
+    error: Optional[str] = None
     execution_time: float = 0

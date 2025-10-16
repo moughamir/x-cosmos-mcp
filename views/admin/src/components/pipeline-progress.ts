@@ -12,7 +12,7 @@ export class PipelineProgress extends LitElement {
 
   private unsubscribe: () => void = () => {};
 
-  connectedCallback() {
+  override connectedCallback() {
     super.connectedCallback();
     this.unsubscribe = subscribe(data => {
       if (data.type === 'initial_data' || data.type === 'pipeline_runs_update' || data.type === 'pipeline_progress_update') {
@@ -21,12 +21,12 @@ export class PipelineProgress extends LitElement {
     });
   }
 
-  disconnectedCallback() {
+  override disconnectedCallback() {
     super.disconnectedCallback();
     this.unsubscribe();
   }
 
-  render() {
+  override render() {
     return html`
       <div class="container">
         <h1>Pipeline Progress</h1>

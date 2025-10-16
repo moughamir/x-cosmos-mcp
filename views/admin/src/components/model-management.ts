@@ -62,10 +62,12 @@ export class ModelManagement extends LitElement {
   @state()
   private modelToPull: string = '';
 
-  async connectedCallback() {
+  override async connectedCallback() {
     super.connectedCallback();
     this.fetchModels();
   }
+
+  override render() {
 
   async fetchModels() {
     try {

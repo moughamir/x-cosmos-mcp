@@ -3,18 +3,17 @@ PostgreSQL database utilities for MCP Admin
 Uses asyncpg for high-performance async database operations
 """
 
-import asyncio
 import datetime
 import json
 import logging
+import os
 from typing import Any, Dict, List, Optional
 
 import asyncpg
 
-from app.config import settings
-
 # Global connection pool for better performance
 _pool: Optional[asyncpg.Pool] = None
+
 
 async def init_db_pool():
     """Initialize PostgreSQL connection pool"""
@@ -22,17 +21,18 @@ async def init_db_pool():
     if _pool is None:
         logging.info("Initializing PostgreSQL connection pool...")
         _pool = await asyncpg.create_pool(
-            user=settings.postgres.user,
-            password=settings.postgres.password,
-            host=settings.postgres.host,
-            port=settings.postgres.port,
-            database=settings.postgres.database,
+            user=os.getenv("POSTGRES_USER", "mcp_user"),
+            password=os.getenv("POSTGRES_PASSWORD", "mcp_password"),
+            host=os.getenv("POSTGRES_HOST", "postgres"),
+            port=int(os.getenv("POSTGRES_PORT", 5432)),
+            database=os.getenv("POSTGRES_DB", "mcp_db"),
             min_size=1,
             max_size=20,  # Increased for better concurrency
             timeout=60,
             command_timeout=60,
         )
         logging.info("PostgreSQL connection pool initialized.")
+
 
 async def close_db_pool():
     """Close PostgreSQL connection pool"""
@@ -43,16 +43,19 @@ async def close_db_pool():
         _pool = None
         logging.info("PostgreSQL connection pool closed.")
 
+
 async def get_db_connection():
     """Get database connection from pool"""
     if _pool is None:
         await init_db_pool()
     return await _pool.acquire()
 
+
 async def release_db_connection(conn):
     """Release database connection back to pool"""
     if _pool:
         await _pool.release(conn)
+
 
 async def get_all_products():
     """Get all products for listing"""
@@ -69,6 +72,7 @@ async def get_all_products():
     finally:
         if conn:
             await release_db_connection(conn)
+
 
 async def get_product_details(product_id: int):
     """Get detailed product information including change history"""
@@ -87,12 +91,12 @@ async def get_product_details(product_id: int):
         # Get change history
         changes_rows = await conn.fetch(
             "SELECT * FROM changes_log WHERE product_id = $1 ORDER BY created_at DESC",
-            product_id
+            product_id,
         )
 
         return {
             "product": dict(product_row),
-            "changes": [dict(change) for change in changes_rows]
+            "changes": [dict(change) for change in changes_rows],
         }
     except Exception as e:
         logging.error(f"Error fetching product {product_id}: {e}")
@@ -100,6 +104,7 @@ async def get_product_details(product_id: int):
     finally:
         if conn:
             await release_db_connection(conn)
+
 
 async def update_product_details(product_id: int, **kwargs):
     """Update product details or create if it doesn't exist"""
@@ -114,8 +119,8 @@ async def update_product_details(product_id: int, **kwargs):
 
         if existing_product:
             # Update existing product
-            set_clauses = []
-            values = []
+            set_clauses: List[str] = []
+            values: List[Any] = []
             param_count = 1
 
             for field, value in kwargs.items():
@@ -131,18 +136,20 @@ async def update_product_details(product_id: int, **kwargs):
 
             query = f"""
                 UPDATE products
-                SET {', '.join(set_clauses)}
+                SET {", ".join(set_clauses)}
                 WHERE id = ${param_count + 1}
             """
             values.append(product_id)
 
             await conn.execute(query, *values)
-            logging.info(f"Updated product {product_id} with fields: {list(kwargs.keys())}")
+            logging.info(
+                f"Updated product {product_id} with fields: {list(kwargs.keys())}"
+            )
         else:
             # Create new product
-            insert_columns = ["id"]
-            insert_values = [product_id]
-            value_placeholders = ["$1"]
+            insert_columns: List[str] = ["id"]
+            insert_values: List[Any] = [product_id]
+            value_placeholders: List[str] = ["$1"]
             param_count = 2
 
             for field, value in kwargs.items():
@@ -150,7 +157,7 @@ async def update_product_details(product_id: int, **kwargs):
                 insert_values.append(value)
                 value_placeholders.append(f"${param_count}")
                 param_count += 1
-            
+
             insert_columns.append("created_at")
             insert_values.append(datetime.datetime.now())
             value_placeholders.append(f"${param_count}")
@@ -160,11 +167,13 @@ async def update_product_details(product_id: int, **kwargs):
             value_placeholders.append(f"${param_count + 1}")
 
             query = f"""
-                INSERT INTO products ({', '.join(insert_columns)})
-                VALUES ({', '.join(value_placeholders)})
+                INSERT INTO products ({", ".join(insert_columns)})
+                VALUES ({", ".join(value_placeholders)})
             """
             await conn.execute(query, *insert_values)
-            logging.info(f"Created new product {product_id} with fields: {list(kwargs.keys())}")
+            logging.info(
+                f"Created new product {product_id} with fields: {list(kwargs.keys())}"
+            )
 
     except Exception as e:
         logging.error(f"Error updating/creating product {product_id}: {e}")
@@ -172,6 +181,7 @@ async def update_product_details(product_id: int, **kwargs):
     finally:
         if conn:
             await release_db_connection(conn)
+
 
 async def get_products_batch(limit: int = 10):
     """Get products for batch processing (unprocessed items)"""
@@ -185,7 +195,7 @@ async def get_products_batch(limit: int = 10):
             WHERE normalized_title IS NULL
             LIMIT $1
             """,
-            limit
+            limit,
         )
         return [dict(row) for row in rows]
     except Exception as e:
@@ -194,6 +204,7 @@ async def get_products_batch(limit: int = 10):
     finally:
         if conn:
             await release_db_connection(conn)
+
 
 async def get_products_for_review(limit: int = 10):
     """Get products that need review (low confidence scores)"""
@@ -208,7 +219,7 @@ async def get_products_for_review(limit: int = 10):
             ORDER BY llm_confidence ASC
             LIMIT $1
             """,
-            limit
+            limit,
         )
         return [dict(row) for row in rows]
     except Exception as e:
@@ -218,6 +229,7 @@ async def get_products_for_review(limit: int = 10):
         if conn:
             await release_db_connection(conn)
 
+
 async def get_db_schema() -> List[Dict[str, Any]]:
     """Get database schema information"""
     conn = None
@@ -225,36 +237,40 @@ async def get_db_schema() -> List[Dict[str, Any]]:
         conn = await get_db_connection()
 
         # Get table names
-        tables_result = await conn.fetch("""
+        tables_result = await conn.fetch(
+            """
             SELECT table_name FROM information_schema.tables
             WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
-        """)
+        """
+        )
 
         schema = []
         for table_row in tables_result:
-            table_name = table_row['table_name']
+            table_name = table_row["table_name"]
 
             # Get column information
-            columns_result = await conn.fetch("""
+            columns_result = await conn.fetch(
+                """
                 SELECT column_name, data_type, is_nullable, column_default
                 FROM information_schema.columns
                 WHERE table_name = $1 AND table_schema = 'public'
                 ORDER BY ordinal_position
-            """, table_name)
+            """,
+                table_name,
+            )
 
             columns = []
             for col_row in columns_result:
-                columns.append({
-                    "name": col_row['column_name'],
-                    "type": col_row['data_type'],
-                    "nullable": col_row['is_nullable'] == 'YES',
-                    "default": col_row['column_default']
-                })
+                columns.append(
+                    {
+                        "name": col_row["column_name"],
+                        "type": col_row["data_type"],
+                        "nullable": col_row["is_nullable"] == "YES",
+                        "default": col_row["column_default"],
+                    }
+                )
 
-            schema.append({
-                "name": table_name,
-                "columns": columns
-            })
+            schema.append({"name": table_name, "columns": columns})
 
         return schema
 
@@ -264,6 +280,7 @@ async def get_db_schema() -> List[Dict[str, Any]]:
     finally:
         if conn:
             await release_db_connection(conn)
+
 
 async def get_change_log(limit: int = 100):
     """Get change log entries"""
@@ -277,7 +294,7 @@ async def get_change_log(limit: int = 100):
             ORDER BY id DESC
             LIMIT $1
             """,
-            limit
+            limit,
         )
         return [dict(row) for row in rows]
     except Exception as e:
@@ -287,21 +304,24 @@ async def get_change_log(limit: int = 100):
         if conn:
             await release_db_connection(conn)
 
+
 async def mark_as_reviewed(product_id: int):
     """Mark all changes for a product as reviewed"""
     conn = None
     try:
         conn = await get_db_connection()
         await conn.execute(
-            "UPDATE changes_log SET reviewed = TRUE WHERE product_id = $1",
-            product_id
+            "UPDATE changes_log SET reviewed = TRUE WHERE product_id = $1", product_id
         )
     except Exception as e:
-        logging.error(f"Error marking changes as reviewed for product {product_id}: {e}")
+        logging.error(
+            f"Error marking changes as reviewed for product {product_id}: {e}"
+        )
         raise
     finally:
         if conn:
             await release_db_connection(conn)
+
 
 async def log_change(pid: int, field: str, old: Any, new: Any, source: str):
     """Log a change to the database"""
@@ -318,7 +338,7 @@ async def log_change(pid: int, field: str, old: Any, new: Any, source: str):
             json.dumps(old) if old is not None else None,
             json.dumps(new) if new is not None else None,
             source,
-            datetime.datetime.now()
+            datetime.datetime.now(),
         )
     except Exception as e:
         logging.error(f"Error logging change for product {pid}: {e}")
@@ -327,6 +347,7 @@ async def log_change(pid: int, field: str, old: Any, new: Any, source: str):
         if conn:
             await release_db_connection(conn)
 
+
 async def update_database_schema():
     """Update database schema for PostgreSQL compatibility"""
     conn = None
@@ -334,23 +355,25 @@ async def update_database_schema():
         conn = await get_db_connection()
 
         # Check if columns exist and add them if missing
-        existing_columns = await conn.fetch("""
+        existing_columns = await conn.fetch(
+            """
             SELECT column_name FROM information_schema.columns
             WHERE table_name = 'products'
-        """)
+        """
+        )
 
-        existing_column_names = {row['column_name'] for row in existing_columns}
+        existing_column_names = {row["column_name"] for row in existing_columns}
 
         # Add missing columns
         columns_to_add = [
-            ('normalized_title', 'TEXT'),
-            ('normalized_body_html', 'TEXT'),
-            ('normalized_tags_json', 'TEXT'),
-            ('gmc_category_label', 'TEXT'),
-            ('llm_model', 'TEXT'),
-            ('llm_confidence', 'DECIMAL(3,2)'),
-            ('normalized_category', 'TEXT'),
-            ('category_confidence', 'DECIMAL(3,2)'),
+            ("normalized_title", "TEXT"),
+            ("normalized_body_html", "TEXT"),
+            ("normalized_tags_json", "TEXT"),
+            ("gmc_category_label", "TEXT"),
+            ("llm_model", "TEXT"),
+            ("llm_confidence", "DECIMAL(3,2)"),
+            ("normalized_category", "TEXT"),
+            ("category_confidence", "DECIMAL(3,2)"),
         ]
 
         for column_name, column_type in columns_to_add:
@@ -361,7 +384,8 @@ async def update_database_schema():
                 logging.info(f"Added column {column_name} to products table")
 
         # Ensure changes_log table exists
-        await conn.execute("""
+        await conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS changes_log (
                 id SERIAL PRIMARY KEY,
                 product_id BIGINT REFERENCES products(id),
@@ -372,10 +396,12 @@ async def update_database_schema():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 reviewed BOOLEAN DEFAULT FALSE
             )
-        """)
+        """
+        )
 
         # Ensure pipeline_runs table exists
-        await conn.execute("""
+        await conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS pipeline_runs (
                 id SERIAL PRIMARY KEY,
                 task_type TEXT,
@@ -386,7 +412,8 @@ async def update_database_schema():
                 processed_products INTEGER DEFAULT 0,
                 failed_products INTEGER DEFAULT 0
             )
-        """)
+        """
+        )
 
         # Create indexes for better performance
         indexes_to_create = [
@@ -400,7 +427,9 @@ async def update_database_schema():
 
         for index_name, index_columns in indexes_to_create:
             try:
-                await conn.execute(f"CREATE INDEX IF NOT EXISTS {index_name} ON {index_columns}")
+                await conn.execute(
+                    f"CREATE INDEX IF NOT EXISTS {index_name} ON {index_columns}"
+                )
                 logging.info(f"Created index {index_name}")
             except Exception as e:
                 logging.warning(f"Could not create index {index_name}: {e}")
@@ -413,6 +442,7 @@ async def update_database_schema():
     finally:
         if conn:
             await release_db_connection(conn)
+
 
 async def create_pipeline_run(task_type: str, total_products: int) -> int:
     """Create a new pipeline run record"""
@@ -430,7 +460,7 @@ async def create_pipeline_run(task_type: str, total_products: int) -> int:
             task_type,
             "RUNNING",
             now,
-            total_products
+            total_products,
         )
 
         return run_id
@@ -441,19 +471,20 @@ async def create_pipeline_run(task_type: str, total_products: int) -> int:
         if conn:
             await release_db_connection(conn)
 
+
 async def update_pipeline_run(
     run_id: int,
-    processed_products: int = None,
-    failed_products: int = None,
-    status: str = None
+    processed_products: Optional[int] = None,
+    failed_products: Optional[int] = None,
+    status: Optional[str] = None,
 ):
     """Update pipeline run progress"""
     conn = None
     try:
         conn = await get_db_connection()
 
-        set_clauses = []
-        values = []
+        set_clauses: List[str] = []
+        values: List[Any] = []
 
         if processed_products is not None:
             set_clauses.append(f"processed_products = ${len(values) + 1}")
@@ -472,7 +503,7 @@ async def update_pipeline_run(
 
         query = f"""
             UPDATE pipeline_runs
-            SET {', '.join(set_clauses)}
+            SET {", ".join(set_clauses)}
             WHERE id = ${len(values) + 1}
         """
         values.append(run_id)
@@ -486,11 +517,9 @@ async def update_pipeline_run(
         if conn:
             await release_db_connection(conn)
 
+
 async def complete_pipeline_run(
-    run_id: int,
-    status: str,
-    processed_products: int,
-    failed_products: int
+    run_id: int, status: str, processed_products: int, failed_products: int
 ):
     """Mark pipeline run as completed"""
     conn = None
@@ -508,7 +537,7 @@ async def complete_pipeline_run(
             now,
             processed_products,
             failed_products,
-            run_id
+            run_id,
         )
 
     except Exception as e:
@@ -517,6 +546,7 @@ async def complete_pipeline_run(
     finally:
         if conn:
             await release_db_connection(conn)
+
 
 async def get_pipeline_runs(limit: int = 100):
     """Get pipeline run history"""
@@ -530,7 +560,7 @@ async def get_pipeline_runs(limit: int = 100):
             ORDER BY start_time DESC
             LIMIT $1
             """,
-            limit
+            limit,
         )
         return [dict(row) for row in rows]
     except Exception as e:
@@ -540,5 +570,5 @@ async def get_pipeline_runs(limit: int = 100):
         if conn:
             await release_db_connection(conn)
 
-# Initialize database pool on module import
 
+# Initialize database pool on module import

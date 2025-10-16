@@ -2,12 +2,11 @@
 
 ## Overview
 
-The MCP application uses SQLite as its primary database, with automatic schema management and migration capabilities.
+The MCP application uses **PostgreSQL** as its primary database, with automatic schema management and migration capabilities.
 
 ## Database Location
 
-**Development:** `data/sqlite/products.sqlite`
-**Production:** `/data/sqlite/products.sqlite` (Docker volume)
+**Development/Production:** Configured via `config.yaml` or environment variables. See `app/config.py`.
 
 ## Core Tables
 
@@ -15,19 +14,23 @@ The MCP application uses SQLite as its primary database, with automatic schema m
 
 ### 1. Products Table
 
-**Primary table for product data storage and management.**
+**Primary table for product data storage and management. Created by `migrate_to_postgres.py`.**
 
 ```sql
-CREATE TABLE products (
-    id INTEGER PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS products (
+    id BIGINT PRIMARY KEY,
     title TEXT,
     body_html TEXT,
     tags TEXT,
     category TEXT,
     normalized_title TEXT,
     normalized_body_html TEXT,
-    llm_confidence REAL DEFAULT 0.0,
+    normalized_tags_json TEXT,
     gmc_category_label TEXT,
+    llm_model TEXT,
+    llm_confidence DECIMAL(3,2) DEFAULT 0.0,
+    normalized_category TEXT,
+    category_confidence DECIMAL(3,2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -35,23 +38,29 @@ CREATE TABLE products (
 
 **Columns:**
 
-| Column | Type | Description | Example |
-|--------|------|-------------|---------|
-| `id` | INTEGER | Primary key, product ID | `172840065` |
-| `title` | TEXT | Original product title | `"Mangas Mini Caramelo Rug"` |
-| `body_html` | TEXT | Product description | `"<p>The Mangas Mini..."` |
-| `tags` | TEXT | Comma-separated tags | `"Brand: GAN, Collection: Mangas"` |
-| `category` | TEXT | Product category | `"Home & Garden > Rugs"` |
-| `normalized_title` | TEXT | AI-processed title | `"Modern Wool Area Rug"` |
-| `normalized_body_html` | TEXT | AI-processed description | `"<p>Beautiful handcrafted..."` |
-| `llm_confidence` | REAL | AI confidence score (0-1) | `0.85` |
-| `gmc_category_label` | TEXT | Google Merchant Center category | `"Home & Garden > Decor > Rugs"` |
-| `created_at` | TIMESTAMP | Record creation time | `"2023-01-01T00:00:00"` |
-| `updated_at` | TIMESTAMP | Last modification time | `"2023-01-01T00:00:00"` |
+| Column                 | Type         | Description                          | Example                            |
+| ---------------------- | ------------ | ------------------------------------ | ---------------------------------- |
+| `id`                   | BIGINT       | Primary key, product ID              | `172840065`                        |
+| `title`                | TEXT         | Original product title               | `"Mangas Mini Caramelo Rug"`       |
+| `body_html`            | TEXT         | Product description                  | `"<p>The Mangas Mini..."`          |
+| `tags`                 | TEXT         | Comma-separated tags                 | `"Brand: GAN, Collection: Mangas"` |
+| `category`             | TEXT         | Original product category            | `"Home & Garden > Rugs"`           |
+| `normalized_title`     | TEXT         | AI-processed title                   | `"Modern Wool Area Rug"`           |
+| `normalized_body_html` | TEXT         | AI-processed description             | `"<p>Beautiful handcrafted..."`    |
+| `normalized_tags_json` | TEXT         | AI-processed tags as a JSON string   | `["GAN", "Mangas Collection"]`     |
+| `gmc_category_label`   | TEXT         | Google Merchant Center category      | `"Home & Garden > Decor > Rugs"`   |
+| `llm_model`            | TEXT         | The LLM used for the last update     | `llama3`                           |
+| `llm_confidence`       | DECIMAL(3,2) | AI confidence score (0-1)            | `0.85`                             |
+| `normalized_category`  | TEXT         | AI-normalized category               | `"Rugs"`                           |
+| `category_confidence`  | DECIMAL(3,2) | Confidence of category normalization | `0.95`                             |
+| `created_at`           | TIMESTAMP    | Record creation time                 | `"2023-01-01T00:00:00"`            |
+| `updated_at`           | TIMESTAMP    | Last modification time               | `"2023-01-01T00:00:00"`            |
 
 **Indexes:**
-- Primary key on `id`
-- Full-text search index on `title` and `body_html`
+
+- `idx_products_llm_confidence` on `llm_confidence`
+- `idx_products_category` on `category`
+- `idx_products_fts` for full-text search on `title` and `body_html`
 
 ---
 
@@ -60,33 +69,33 @@ CREATE TABLE products (
 **Audit trail for all product modifications.**
 
 ```sql
-CREATE TABLE changes_log (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    product_id INTEGER,
+CREATE TABLE IF NOT EXISTS changes_log (
+    id SERIAL PRIMARY KEY,
+    product_id BIGINT REFERENCES products(id),
     field TEXT,
     old TEXT,
-    new TEXT,
+    new_value TEXT,
     source TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    reviewed BOOLEAN DEFAULT 0,
-    FOREIGN KEY (product_id) REFERENCES products(id)
+    reviewed BOOLEAN DEFAULT FALSE
 );
 ```
 
 **Columns:**
 
-| Column | Type | Description | Example |
-|--------|------|-------------|---------|
-| `id` | INTEGER | Primary key, change ID | `1` |
-| `product_id` | INTEGER | Related product ID | `172840065` |
-| `field` | TEXT | Field that was changed | `"title"` |
-| `old` | TEXT | Previous value (JSON) | `"Old Title"` |
-| `new` | TEXT | New value (JSON) | `"New Title"` |
-| `source` | TEXT | Change source | `"manual_edit"` |
-| `created_at` | TIMESTAMP | When change occurred | `"2023-01-01T00:00:00"` |
-| `reviewed` | BOOLEAN | Review status | `0` (false) |
+| Column       | Type      | Description            | Example                 |
+| ------------ | --------- | ---------------------- | ----------------------- |
+| `id`         | INTEGER   | Primary key, change ID | `1`                     |
+| `product_id` | INTEGER   | Related product ID     | `172840065`             |
+| `field`      | TEXT      | Field that was changed | `"title"`               |
+| `old`        | TEXT      | Previous value (JSON)  | `"Old Title"`           |
+| `new`        | TEXT      | New value (JSON)       | `"New Title"`           |
+| `source`     | TEXT      | Change source          | `"manual_edit"`         |
+| `created_at` | TIMESTAMP | When change occurred   | `"2023-01-01T00:00:00"` |
+| `reviewed`   | BOOLEAN   | Review status          | `0` (false)             |
 
 **Possible `source` values:**
+
 - `manual_edit` - User modified via frontend
 - `api_update` - Modified via API call
 - `pipeline_meta` - Changed by meta optimization pipeline
@@ -114,18 +123,19 @@ CREATE TABLE pipeline_runs (
 
 **Columns:**
 
-| Column | Type | Description | Example |
-|--------|------|-------------|---------|
-| `id` | INTEGER | Primary key, run ID | `1` |
-| `task_type` | TEXT | Type of pipeline task | `"meta_optimization"` |
-| `status` | TEXT | Current status | `"COMPLETED"` |
-| `start_time` | TIMESTAMP | When pipeline started | `"2023-01-01T00:00:00"` |
-| `end_time` | TIMESTAMP | When pipeline finished | `"2023-01-01T00:01:00"` |
-| `total_products` | INTEGER | Total products to process | `100` |
-| `processed_products` | INTEGER | Successfully processed | `95` |
-| `failed_products` | INTEGER | Failed to process | `5` |
+| Column               | Type      | Description               | Example                 |
+| -------------------- | --------- | ------------------------- | ----------------------- |
+| `id`                 | INTEGER   | Primary key, run ID       | `1`                     |
+| `task_type`          | TEXT      | Type of pipeline task     | `"meta_optimization"`   |
+| `status`             | TEXT      | Current status            | `"COMPLETED"`           |
+| `start_time`         | TIMESTAMP | When pipeline started     | `"2023-01-01T00:00:00"` |
+| `end_time`           | TIMESTAMP | When pipeline finished    | `"2023-01-01T00:01:00"` |
+| `total_products`     | INTEGER   | Total products to process | `100`                   |
+| `processed_products` | INTEGER   | Successfully processed    | `95`                    |
+| `failed_products`    | INTEGER   | Failed to process         | `5`                     |
 
 **Possible `task_type` values:**
+
 - `meta_optimization` - SEO meta tag optimization
 - `content_rewriting` - Product description enhancement
 - `keyword_analysis` - Keyword extraction and analysis
@@ -133,6 +143,7 @@ CREATE TABLE pipeline_runs (
 - `tag_optimization` - Tag optimization and cleanup
 
 **Possible `status` values:**
+
 - `RUNNING` - Currently executing
 - `COMPLETED` - Finished successfully
 - `FAILED` - Encountered errors
@@ -229,6 +240,7 @@ CREATE VIRTUAL TABLE products_fts USING fts5(
 ```
 
 **Usage:**
+
 ```sql
 -- Search in title and description
 SELECT * FROM products_fts WHERE products_fts MATCH 'modern rug';
@@ -244,13 +256,13 @@ ORDER BY rank;
 
 ### SQLite Data Types Used
 
-| Type | Description | Example |
-|------|-------------|---------|
-| `INTEGER` | Whole numbers | `172840065` |
-| `TEXT` | Strings/JSON | `"Product Title"` |
-| `REAL` | Decimal numbers | `0.85` |
-| `TIMESTAMP` | ISO datetime | `"2023-01-01T00:00:00"` |
-| `BOOLEAN` | True/false values | `0` or `1` |
+| Type        | Description       | Example                 |
+| ----------- | ----------------- | ----------------------- |
+| `INTEGER`   | Whole numbers     | `172840065`             |
+| `TEXT`      | Strings/JSON      | `"Product Title"`       |
+| `REAL`      | Decimal numbers   | `0.85`                  |
+| `TIMESTAMP` | ISO datetime      | `"2023-01-01T00:00:00"` |
+| `BOOLEAN`   | True/false values | `0` or `1`              |
 
 ### Foreign Key Constraints
 
@@ -306,6 +318,7 @@ tags (1) ──── (N) product_tags
 ### Query Optimization
 
 **Efficient Queries:**
+
 ```sql
 -- Use indexed columns
 SELECT * FROM products WHERE id = ?;
@@ -318,6 +331,7 @@ SELECT * FROM products ORDER BY created_at DESC LIMIT 100;
 ```
 
 **Avoid:**
+
 ```sql
 -- No indexes on these columns
 SELECT * FROM products WHERE category = ?;
@@ -361,6 +375,7 @@ UPDATE products SET new_field = 'default_value';
 ### Backup Contents
 
 A complete backup should include:
+
 - `products.sqlite` - Main database file
 - `config.yaml` - Application configuration
 - Model files in `~/.ollama/models/` - AI models
@@ -411,6 +426,7 @@ SELECT * FROM sqlite_stat1;
 ### Data Cleaning
 
 **Regular maintenance queries:**
+
 ```sql
 -- Remove orphaned records
 DELETE FROM changes_log WHERE product_id NOT IN (SELECT id FROM products);
@@ -437,6 +453,7 @@ SELECT id FROM products WHERE json_valid(normalized_title) = 0;
 ### Scalability Considerations
 
 For datasets larger than 100K products:
+
 1. **Database Migration:** Consider PostgreSQL for better performance
 2. **Read Replicas:** Separate read/write databases
 3. **Caching Layer:** Redis for frequently accessed data

@@ -1,4 +1,8 @@
 # MCP Configuration
+ollama:
+  host: http://localhost
+  port: 11434
+
 models:
   title_model: llama3.2:1b-instruct-q4_K_M
   description_model: qwen2:1.5b

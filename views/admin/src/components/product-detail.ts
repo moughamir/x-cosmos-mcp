@@ -64,7 +64,7 @@ export class ProductDetail extends LitElement {
   @state()
   private editedProduct: Partial<Product> = {};
 
-  async connectedCallback() {
+  override async connectedCallback() {
     super.connectedCallback();
     // Extract product_id from the URL
     const path = window.location.pathname;
@@ -75,6 +75,8 @@ export class ProductDetail extends LitElement {
       await this.fetchProductDetails();
     }
   }
+
+  override render() {
 
   async fetchProductDetails() {
     if (!this.productId) return;

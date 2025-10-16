@@ -14,7 +14,7 @@ export class ProductList extends LitElement {
   @state()
   private products: Product[] = [];
 
-  async connectedCallback() {
+  override async connectedCallback() {
     super.connectedCallback();
     try {
       const response = await fetch('/api/products');
@@ -25,11 +25,7 @@ export class ProductList extends LitElement {
     }
   }
 
-  navigateToProductDetail(productId: number) {
-    Router.go(`/products/${productId}`);
-  }
-
-  render() {
+  override render() {
     return html`
       <div class="container mx-auto p-4">
         <h1 class="text-2xl font-bold mb-4">Products</h1>

@@ -4,7 +4,6 @@
 Dockerfile
 docker-compose.yml
 README.md
-scripts/
 .venv
 __pycache__
 *.pyc

@@ -21,7 +21,6 @@ httpx = "*"
 requests = "*"
 beautifulsoup4 = "*"
 aiohttp = "*"
-tiktoken = "*"
 
 [tool.poetry.dev-dependencies]
 pytest = "*"
@@ -29,3 +28,23 @@ pytest = "*"
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+
+
+[tool.isort]
+profile = "black"
+line_length = 100
+known_first_party = ["app"]
+skip_glob = ["*/.venv/*"]
+
+[tool.black]
+line-length = 100
+
+[tool.ruff]
+line-length = 100
+
+[tool.mypy]
+python_version = "3.11"
+warn_unused_configs = true
+ignore_missing_imports = true
+exclude = [".venv/"]

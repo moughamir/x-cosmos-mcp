@@ -16,3 +16,7 @@ aiohttp
 uvicorn[standard]
 asyncpg
 psycopg2-binary
+black
+mypy
+isort
+fastmcp

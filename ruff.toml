@@ -1,5 +1,5 @@
 [lint]
-select = ["E", "F", "W", "I"]
+select = ["E", "F", "W"]
 ignore = ["E501"]
 
 [format]

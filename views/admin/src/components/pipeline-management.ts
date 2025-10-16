@@ -62,10 +62,12 @@ export class PipelineManagement extends LitElement {
   @state()
   private selectedProductIds: Set<number> = new Set();
 
-  async connectedCallback() {
+  override async connectedCallback() {
     super.connectedCallback();
     this.fetchAllProducts();
   }
+
+  override render() {
 
   async fetchAllProducts() {
     try {

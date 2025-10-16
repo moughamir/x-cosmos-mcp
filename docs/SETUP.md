@@ -150,8 +150,9 @@ npm run python:run
 ```
 
 The application will be available at:
-- **Frontend:** http://localhost:8000
-- **API:** http://localhost:8000/api/*
+
+- **Frontend:** <http://localhost:8000>
+- **API:** <http://localhost:8000/api/\>\*
 - **API Documentation:** Available through frontend interface
 
 ---
@@ -203,6 +204,7 @@ curl http://localhost:8000/api/products | head -5
 #### Backend Service
 
 **Dockerfile:**
+
 ```dockerfile
 FROM python:3.11-slim
 
@@ -217,6 +219,7 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
 **Features:**
+
 - Multi-stage build for smaller images
 - Production-optimized Python environment
 - Proper signal handling for graceful shutdowns
@@ -224,6 +227,7 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 #### Frontend Service (Nginx)
 
 **nginx.conf:**
+
 ```nginx
 server {
     listen 80;
@@ -255,6 +259,7 @@ server {
 #### Ollama Service
 
 **Dockerfile:**
+
 ```dockerfile
 FROM ollama/ollama:latest
 
@@ -270,6 +275,7 @@ RUN ollama pull nomic-embed-text
 ### Development Environment
 
 **.env (Development):**
+
 ```bash
 # Database
 DATABASE_URL=sqlite:///data/products.db
@@ -288,6 +294,7 @@ VITE_API_URL=http://localhost:8000/api
 ### Production Environment
 
 **.env (Production):**
+
 ```bash
 # Database
 DATABASE_URL=sqlite:////data/products.db
@@ -313,6 +320,7 @@ VITE_API_URL=/api
 ### Initial Setup
 
 The database is automatically initialized on first startup with:
+
 - **Products table:** Main product data storage
 - **Changes log:** Audit trail for all modifications
 - **Pipeline runs:** Execution history tracking
@@ -347,6 +355,7 @@ docker compose restart backend
 ### Installing Models
 
 #### Via API
+
 ```bash
 # Pull a model
 curl -X POST http://localhost:8000/api/ollama/pull \
@@ -358,6 +367,7 @@ curl http://localhost:8000/api/ollama/models
 ```
 
 #### Via Ollama CLI
+
 ```bash
 # Pull model directly
 ollama pull llama3.2:1b
@@ -372,12 +382,14 @@ ollama rm llama3.2:1b
 ### Model Storage
 
 Models are stored in:
+
 - **Docker:** `/root/.ollama/models/`
 - **Host:** `~/.ollama/models/`
 
 ### Recommended Models
 
 For the MCP application:
+
 - **llama3.2:1b-instruct-q4_K_M** - Title optimization (4GB)
 - **qwen2:1.5b** - Content rewriting (3GB)
 - **nomic-embed-text:latest** - Text embeddings (274MB)
@@ -441,6 +453,7 @@ curl http://localhost:11434/api/version
 **Symptoms:** Server fails to start, port 8000 not accessible
 
 **Solutions:**
+
 ```bash
 # Check if port is in use
 netstat -tlnp | grep :8000
@@ -460,6 +473,7 @@ python3 -c "from app.config import settings; print('Config OK')"
 **Symptoms:** API returns 500 errors, database operations fail
 
 **Solutions:**
+
 ```bash
 # Check database file
 ls -la data/sqlite/products.sqlite
@@ -480,6 +494,7 @@ rm data/sqlite/products.sqlite
 **Symptoms:** Model endpoints return errors, models not accessible
 
 **Solutions:**
+
 ```bash
 # Check Ollama status
 systemctl status ollama
@@ -499,6 +514,7 @@ du -sh ~/.ollama/models/
 **Symptoms:** CSS/JS not loading, build errors
 
 **Solutions:**
+
 ```bash
 # Clear build cache
 rm -rf node_modules/.cache
@@ -519,6 +535,7 @@ chmod -R 755 views/admin/static/
 **Symptoms:** Containers fail to start, services unavailable
 
 **Solutions:**
+
 ```bash
 # Check Docker status
 systemctl status docker

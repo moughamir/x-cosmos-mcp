@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "FastAPI": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--with",
+        "fastmcp",
+        "fastmcp",
+        "run",
+        "/home/odin/Documents/Vaults/x-cosmos-ws/mcp/openai/mcp_server.py"
+      ]
+    }
+  }
+}

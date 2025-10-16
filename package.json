@@ -1,30 +1,5 @@
 {
-  "$schema": "https://json.schemastore.org/package.json",
-  "name": "mcp-admin",
-  "version": "1.0.0",
-  "description": "Admin UI for MCP",
-  "scripts": {
-    "docker:upbuild": "docker compose up --build",
-    "docker:downvolumes": "docker compose down --volumes",
-    "build:css": "tailwindcss -i ./views/admin/src/tailwind.css -o ./views/admin/static/css/styles.css",
-    "build:js": "esbuild ./views/admin/src/main.ts --bundle --outfile=./views/admin/static/js/main.js --format=esm",
-    "build": "pnpm run build:css && pnpm run build:js",
-    "watch": "pnpm run build && concurrently \"tailwindcss -i ./views/admin/src/tailwind.css -o ./views/admin/static/css/styles.css --watch\" \"esbuild ./views/admin/src/main.ts --bundle --outfile=./views/admin/static/js/main.js --format=esm --watch\"",
-    "type-check": "tsc --noEmit",
-    "python:run": "uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload",
-    "docker:build": "docker compose build",
-    "docker:up": "docker compose up",
-    "docker:down": "docker compose down"
-  },
-  "devDependencies": {
-    "tailwindcss": "^3.4.1",
-    "typescript": "^5.3.3",
-    "esbuild": "^0.19.11",
-    "concurrently": "^8.2.2",
-    "cross-env": "^7.0.3"
-  },
-  "dependencies": {
-    "lit": "^3.1.0",
-    "@vaadin/router": "^1.7.5"
-  }
+	"devDependencies": {
+		"@tailwindcss/postcss": "^4.1.14"
+	}
 }

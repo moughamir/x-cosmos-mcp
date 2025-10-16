@@ -39,10 +39,10 @@ class TaxonomyNode:
 
 def load_taxonomy() -> Dict[str, TaxonomyNode]:
     """Loads the Google taxonomy list from local files and builds a hierarchical tree."""
+    root_nodes: Dict[str, TaxonomyNode] = {}
     if os.path.exists(CACHE_PATH):
         with open(CACHE_PATH, "r") as f:
             cached_data = json.load(f)
-            root_nodes = {}
             for name, data in cached_data.items():
                 root_nodes[name] = TaxonomyNode.from_dict(data)
             return root_nodes
@@ -51,7 +51,6 @@ def load_taxonomy() -> Dict[str, TaxonomyNode]:
     if not os.path.isdir(TAXONOMY_DIR):
         raise FileNotFoundError(f"Taxonomy directory not found at {TAXONOMY_DIR}")
 
-    root_nodes: Dict[str, TaxonomyNode] = {}
     all_nodes: Dict[str, TaxonomyNode] = {}
 
     for filename in os.listdir(TAXONOMY_DIR):

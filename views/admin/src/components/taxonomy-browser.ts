@@ -53,7 +53,7 @@ export class TaxonomyBrowser extends LitElement {
   @state()
   private expandedNodes: Set<string> = new Set();
 
-  async connectedCallback() {
+  override async connectedCallback() {
     super.connectedCallback();
     this.fetchTaxonomyTree();
   }
@@ -107,7 +107,7 @@ export class TaxonomyBrowser extends LitElement {
     `;
   }
 
-  render() {
+  override render() {
     return html`
       <div class="container">
         <h1>Google Product Taxonomy Browser</h1>
