@@ -1,20 +1,18 @@
 import logging
 from typing import List, Optional
 
-from .db import get_db_connection, release_db_connection, update_product_details
+from .db import get_connection, update_product_details
 from .taxonomy import find_best_category, load_taxonomy
 
 logger = logging.getLogger(__name__)
 
 
-async def normalize_categories(
+async def _normalize_categories_batch(
     product_ids: Optional[List[int]] = None, batch_size: int = 100
 ):
     """Normalize product categories using Google taxonomy."""
     taxonomy_tree = load_taxonomy()
-    conn = None
-    try:
-        conn = await get_db_connection()
+    async with get_connection() as conn:
         products = []
         if product_ids:
             placeholders = ",".join(f"${i + 1}" for i, _ in enumerate(product_ids))
@@ -50,6 +48,3 @@ async def normalize_categories(
             )
 
         logger.info("✅ Category normalization batch complete.")
-    finally:
-        if conn:
-            await release_db_connection(conn)

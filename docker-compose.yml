@@ -27,9 +27,9 @@ services:
     ports:
       - "11434:11434"
     volumes:
-      - ollama_data:/root/.ollama
+      - ./data/ollama.models:/root/.ollama
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/version"]
+      test: ["CMD", "ollama", "list"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -84,7 +84,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      BACKEND_API_URL: http://mcp_backend:8000
+      NEXT_PUBLIC_BACKEND_API_URL: http://mcp_backend:8000
+      NODE_ENV: development
     depends_on:
       - mcp_backend
     volumes:
@@ -93,24 +94,12 @@ services:
     command: pnpm dev
     networks:
       - mcp-network
-    develop:
-      watch:
-        - action: sync
-          path: ./frontend/src
-          target: /app/src
-        - action: sync
-          path: ./frontend/public
-          target: /app/public
-        - action: rebuild
-          path: ./frontend/package.json
-        - action: rebuild
-          path: ./frontend/pnpm-lock.yaml
+
 
 volumes:
   postgres_data:
     driver: local
-  ollama_data:
-    driver: local
+
 
 networks:
   mcp-network:
