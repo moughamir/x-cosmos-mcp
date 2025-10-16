@@ -84,7 +84,29 @@ Detailed database structure, relationships, and data management.
 - Backup and recovery
 - Query optimization
 
-### 📋 **[Usage Guide & Troubleshooting](./USAGE.md)**
+### 📋 **[Usage Guide & Troubleshooting](./docs/USAGE.md)**
+
+Practical usage examples, workflows, and problem-solving guide.
+
+**Covers:**
+
+- Daily usage workflows
+- API integration examples (cURL, Python, JavaScript)
+- Advanced features and batch processing
+- Performance monitoring
+- Troubleshooting common issues
+- Maintenance procedures
+
+### 🚀 **[Production Readiness Plan](./docs/PRODUCTION_READINESS.md)**
+
+Detailed plan to address identified issues and prepare the application for production deployment.
+
+**Covers:**
+
+- Critical issues (authentication, bug fixes, testing)
+- Important enhancements (monitoring, CI/CD, orchestration)
+- Documentation updates
+- Prioritization and tracking
 
 Practical usage examples, workflows, and problem-solving guide.
 
@@ -168,6 +190,7 @@ The MCP Admin application is a comprehensive platform for:
 | **[⚙️ Setup Guide](./docs/SETUP.md)**       | Installation and deployment     | ✅ Complete |
 | **[🗄️ Database Docs](./docs/DATABASE.md)**  | Schema and data management      | ✅ Complete |
 | **[📋 Usage Guide](./docs/USAGE.md)**       | Workflows and troubleshooting   | ✅ Complete |
+| **[🚀 Production Readiness](./docs/PRODUCTION_READINESS.md)** | Plan for production deployment  | 🚧 In Progress |
 
 ---
 
