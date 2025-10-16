@@ -34,7 +34,7 @@ curl http://localhost:8000/api/products
 
 ## 📖 Documentation Sections
 
-### 🛠️ **[API Documentation](./API.md)**
+### 🛠️ **[API Documentation](./docs/API.md)**
 
 Complete REST API reference with all endpoints, request/response examples, and error handling.
 
@@ -46,7 +46,7 @@ Complete REST API reference with all endpoints, request/response examples, and e
 - Pipeline monitoring (`/api/pipeline/runs`)
 - Error responses and status codes
 
-### 🎨 **[Frontend Documentation](./FRONTEND.md)**
+### 🎨 **[Frontend Documentation](./docs/FRONTEND.md)**
 
 Comprehensive guide to the web interface, features, and user experience.
 
@@ -58,7 +58,7 @@ Comprehensive guide to the web interface, features, and user experience.
 - Responsive design and accessibility
 - Performance optimizations
 
-### ⚙️ **[Setup & Deployment Guide](./SETUP.md)**
+### ⚙️ **[Setup & Deployment Guide](./docs/SETUP.md)**
 
 Complete installation, configuration, and deployment instructions.
 
@@ -71,7 +71,7 @@ Complete installation, configuration, and deployment instructions.
 - Monitoring and maintenance
 - Troubleshooting common issues
 
-### 🗄️ **[Database Schema Documentation](./DATABASE.md)**
+### 🗄️ **[Database Schema Documentation](./docs/DATABASE.md)**
 
 Detailed database structure, relationships, and data management.
 
@@ -84,7 +84,7 @@ Detailed database structure, relationships, and data management.
 - Backup and recovery
 - Query optimization
 
-### 📋 **[Usage Guide & Troubleshooting](./USAGE.md)**
+### 📋 **[Usage Guide & Troubleshooting](./docs/USAGE.md)**
 
 Practical usage examples, workflows, and problem-solving guide.
 
