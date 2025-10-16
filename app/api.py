@@ -136,3 +136,15 @@ async def websocket_endpoint(websocket: WebSocket):
         logging.error(f"WebSocket error: {e}")
     finally:
         manager.disconnect(websocket, "default")
+
+
+@app.websocket("/ws/pipeline-progress")
+async def websocket_pipeline_progress_endpoint(websocket: WebSocket):
+    await manager.connect(websocket, "pipeline_progress")
+    try:
+        while True:
+            await websocket.receive_text()
+    except Exception as e:
+        logging.error(f"WebSocket pipeline-progress error: {e}")
+    finally:
+        manager.disconnect(websocket, "pipeline_progress")

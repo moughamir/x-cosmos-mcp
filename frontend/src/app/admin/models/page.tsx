@@ -35,6 +35,7 @@ export default function ModelManagementPage() {
   const fetchModels = async () => {
     setIsLoading(true);
     try {
+      console.log("Fetching models from /api/ollama/models");
       const response = await fetch('/api/ollama/models', { cache: 'no-store' });
       if (!response.ok) {
         const errorData = await response.json();

@@ -4,7 +4,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
 from ..pipeline import MultiModelSEOManager
-from ..pipeline import TaskType
+from ..config import TaskType
 from ..utils.db import get_pipeline_runs
 
 router = APIRouter()

@@ -8,3 +8,4 @@ pyyaml
 Jinja2
 beautifulsoup4
 pydantic-settings
+ollama
