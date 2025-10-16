@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 
 async function getProducts(): Promise<{ products: Product[] }> {
   // Fetching from the proxied backend API
-  const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL}/api/products`, {
+  const res = await fetch('/api/products', {
     cache: 'no-store',
   });
 

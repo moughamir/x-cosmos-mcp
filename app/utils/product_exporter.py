@@ -1,46 +1,41 @@
 import csv
 import io
-import logging
 from typing import List, Optional
 
-from app.utils.db import get_connection
-
-logger = logging.getLogger(__name__)
+import aiosqlite
 
 
 async def export_products_to_csv(
-    product_ids: Optional[List[int]] = None,
+    db_path: str, product_ids: Optional[List[int]] = None
 ) -> io.StringIO:
     """Exports product data to a CSV format in a StringIO object."""
     output = io.StringIO()
     writer = csv.writer(output)
 
-    try:
-        async with get_connection() as conn:
-            if product_ids:
-                placeholders = ",".join([f"${i+1}" for i in range(len(product_ids))])
-                rows = await conn.fetch(
-                    f"SELECT * FROM products WHERE id IN ({placeholders})", *product_ids
-                )
-            else:
-                rows = await conn.fetch("SELECT * FROM products")
+    async with aiosqlite.connect(db_path) as conn:
+        conn.row_factory = aiosqlite.Row
+        cursor = await conn.cursor()
 
-            if not rows:
-                return output
+        if product_ids:
+            placeholders = ",".join("?" * len(product_ids))
+            await cursor.execute(
+                f"SELECT * FROM products WHERE id IN ({placeholders})", product_ids
+            )
+        else:
+            await cursor.execute("SELECT * FROM products")
 
-            # Write header
-            # asyncpg returns records, which can be converted to dicts to get keys
-            header = list(rows[0].keys())
-            writer.writerow(header)
+        products = await cursor.fetchall()
 
-            # Write rows
-            for row in rows:
-                writer.writerow(list(row.values()))
+        if not products:
+            return output
 
-    except Exception as e:
-        logger.error(f"Error exporting products to CSV: {e}")
-        # Depending on desired behavior, you might want to re-raise or return an empty/error indicator
-        return io.StringIO()  # Return empty StringIO on error
+        # Write header
+        header = products[0].keys()
+        writer.writerow(header)
+
+        # Write rows
+        for product in products:
+            writer.writerow(list(product))
 
     output.seek(0)
     return output

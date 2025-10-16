@@ -11,20 +11,5 @@
         "/home/odin/Documents/Vaults/x-cosmos-ws/mcp/openai/mcp_server.py"
       ]
     }
-  },
-  "general": {
-    "enablePromptCompletion": true
-  },
-  "context": {
-    "fileFiltering": {
-      "respectGitIgnore": false,
-      "respectGeminiIgnore": false
-    }
-  },
-  "tools": {
-    "enableMessageBusIntegration": true
-  },
-  "experimental": {
-    "useModelRouter": true
   }
 }

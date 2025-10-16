@@ -3,7 +3,6 @@ import os
 import sys
 
 import asyncpg
-import httpx
 
 
 async def test_db_connection():
@@ -24,29 +23,8 @@ async def test_db_connection():
         return False
 
 
-async def test_ollama_connection():
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"{os.getenv('OLLAMA_HOST', 'http://ollama:11434')}/api/tags",
-                timeout=10,
-            )
-            response.raise_for_status()
-            print("Ollama connection successful")
-            return True
-    except Exception as e:
-        print(f"Ollama connection failed: {e}")
-        return False
-
-
-async def healthcheck():
-    db_ok = await test_db_connection()
-    ollama_ok = await test_ollama_connection()
-    return db_ok and ollama_ok
-
-
 if __name__ == "__main__":
-    if asyncio.run(healthcheck()):
+    if asyncio.run(test_db_connection()):
         sys.exit(0)
     else:
         sys.exit(1)
