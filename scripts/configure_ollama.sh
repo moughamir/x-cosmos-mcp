@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Set the OLLAMA_MODELS environment variable to store models in the project directory
-OLLAMA_MODELS_PATH="$(pwd)/data/ollama.models"
+OLLAMA_MODELS_PATH="$(pwd)/data/ollama.models/models"
 
 # Create a .env file for Docker Compose to use
 echo "OLLAMA_MODELS=${OLLAMA_MODELS_PATH}" > .env
@@ -26,7 +26,7 @@ echo "Starting Ollama model downloads..."
 
 for model in "${MODELS[@]}"; do
     echo "Attempting to pull model: $model"
-    ollama pull "$model"
+    docker compose exec mcp_ollama ollama pull "$model"
     if [ $? -eq 0 ]; then
         echo "Successfully pulled $model"
     else

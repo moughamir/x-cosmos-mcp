@@ -18,10 +18,6 @@ class Ollama(BaseModel):
             return self.host
         return f"{self.host}:{self.port}"
 
-    @property
-    def api_url(self) -> str:
-        return f"{self.base_url}/api"
-
 
 class Models(BaseModel):
     title_model: str

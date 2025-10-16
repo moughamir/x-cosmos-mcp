@@ -7,6 +7,7 @@ import datetime
 import json
 import logging
 import os
+from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
 
 import asyncpg
@@ -44,42 +45,29 @@ async def close_db_pool():
         logging.info("PostgreSQL connection pool closed.")
 
 
-async def get_db_connection():
-    """Get database connection from pool"""
-    if _pool is None:
-        await init_db_pool()
-    return await _pool.acquire()
-
-
-async def release_db_connection(conn):
-    """Release database connection back to pool"""
-    if _pool:
-        await _pool.release(conn)
+@asynccontextmanager
+async def get_connection():
+    conn = None
+    try:
+        conn = await _pool.acquire()
+        yield conn
+    finally:
+        if conn:
+            await _pool.release(conn)
 
 
 async def get_all_products():
     """Get all products for listing"""
-    conn = None
-    try:
-        conn = await get_db_connection()
+    async with get_connection() as conn:
         rows = await conn.fetch(
             "SELECT id, title, llm_confidence, gmc_category_label FROM products ORDER BY id"
         )
         return [dict(row) for row in rows]
-    except Exception as e:
-        logging.error(f"Error fetching products: {e}")
-        raise
-    finally:
-        if conn:
-            await release_db_connection(conn)
 
 
 async def get_product_details(product_id: int):
     """Get detailed product information including change history"""
-    conn = None
-    try:
-        conn = await get_db_connection()
-
+    async with get_connection() as conn:
         # Get product details
         product_row = await conn.fetchrow(
             "SELECT * FROM products WHERE id = $1", product_id
@@ -98,20 +86,11 @@ async def get_product_details(product_id: int):
             "product": dict(product_row),
             "changes": [dict(change) for change in changes_rows],
         }
-    except Exception as e:
-        logging.error(f"Error fetching product {product_id}: {e}")
-        raise
-    finally:
-        if conn:
-            await release_db_connection(conn)
 
 
 async def update_product_details(product_id: int, **kwargs):
     """Update product details or create if it doesn't exist"""
-    conn = None
-    try:
-        conn = await get_db_connection()
-
+    async with get_connection() as conn:
         # Check if product exists
         existing_product = await conn.fetchrow(
             "SELECT id FROM products WHERE id = $1", product_id
@@ -175,19 +154,10 @@ async def update_product_details(product_id: int, **kwargs):
                 f"Created new product {product_id} with fields: {list(kwargs.keys())}"
             )
 
-    except Exception as e:
-        logging.error(f"Error updating/creating product {product_id}: {e}")
-        raise
-    finally:
-        if conn:
-            await release_db_connection(conn)
-
 
 async def get_products_batch(limit: int = 10):
     """Get products for batch processing (unprocessed items)"""
-    conn = None
-    try:
-        conn = await get_db_connection()
+    async with get_connection() as conn:
         rows = await conn.fetch(
             """
             SELECT id, title, body_html, tags, category
@@ -198,19 +168,11 @@ async def get_products_batch(limit: int = 10):
             limit,
         )
         return [dict(row) for row in rows]
-    except Exception as e:
-        logging.error(f"Error fetching products batch: {e}")
-        raise
-    finally:
-        if conn:
-            await release_db_connection(conn)
 
 
 async def get_products_for_review(limit: int = 10):
     """Get products that need review (low confidence scores)"""
-    conn = None
-    try:
-        conn = await get_db_connection()
+    async with get_connection() as conn:
         rows = await conn.fetch(
             """
             SELECT id, title, normalized_title, body_html, normalized_body_html, llm_confidence
@@ -222,20 +184,11 @@ async def get_products_for_review(limit: int = 10):
             limit,
         )
         return [dict(row) for row in rows]
-    except Exception as e:
-        logging.error(f"Error fetching products for review: {e}")
-        raise
-    finally:
-        if conn:
-            await release_db_connection(conn)
 
 
 async def get_db_schema() -> List[Dict[str, Any]]:
     """Get database schema information"""
-    conn = None
-    try:
-        conn = await get_db_connection()
-
+    async with get_connection() as conn:
         # Get table names
         tables_result = await conn.fetch(
             """
@@ -274,19 +227,10 @@ async def get_db_schema() -> List[Dict[str, Any]]:
 
         return schema
 
-    except Exception as e:
-        logging.error(f"Error fetching database schema: {e}")
-        raise
-    finally:
-        if conn:
-            await release_db_connection(conn)
-
 
 async def get_change_log(limit: int = 100):
     """Get change log entries"""
-    conn = None
-    try:
-        conn = await get_db_connection()
+    async with get_connection() as conn:
         rows = await conn.fetch(
             """
             SELECT id, product_id, field, old, new, created_at, reviewed
@@ -297,37 +241,19 @@ async def get_change_log(limit: int = 100):
             limit,
         )
         return [dict(row) for row in rows]
-    except Exception as e:
-        logging.error(f"Error fetching changes: {e}")
-        raise
-    finally:
-        if conn:
-            await release_db_connection(conn)
 
 
 async def mark_as_reviewed(product_id: int):
     """Mark all changes for a product as reviewed"""
-    conn = None
-    try:
-        conn = await get_db_connection()
+    async with get_connection() as conn:
         await conn.execute(
             "UPDATE changes_log SET reviewed = TRUE WHERE product_id = $1", product_id
         )
-    except Exception as e:
-        logging.error(
-            f"Error marking changes as reviewed for product {product_id}: {e}"
-        )
-        raise
-    finally:
-        if conn:
-            await release_db_connection(conn)
 
 
 async def log_change(pid: int, field: str, old: Any, new: Any, source: str):
     """Log a change to the database"""
-    conn = None
-    try:
-        conn = await get_db_connection()
+    async with get_connection() as conn:
         await conn.execute(
             """
             INSERT INTO changes_log (product_id, field, old, new, source, created_at)
@@ -340,20 +266,11 @@ async def log_change(pid: int, field: str, old: Any, new: Any, source: str):
             source,
             datetime.datetime.now(),
         )
-    except Exception as e:
-        logging.error(f"Error logging change for product {pid}: {e}")
-        raise
-    finally:
-        if conn:
-            await release_db_connection(conn)
 
 
 async def update_database_schema():
     """Update database schema for PostgreSQL compatibility"""
-    conn = None
-    try:
-        conn = await get_db_connection()
-
+    async with get_connection() as conn:
         # Check if columns exist and add them if missing
         existing_columns = await conn.fetch(
             """
@@ -436,19 +353,10 @@ async def update_database_schema():
 
         logging.info("Database schema updated successfully")
 
-    except Exception as e:
-        logging.error(f"Error updating database schema: {e}")
-        raise
-    finally:
-        if conn:
-            await release_db_connection(conn)
-
 
 async def create_pipeline_run(task_type: str, total_products: int) -> int:
     """Create a new pipeline run record"""
-    conn = None
-    try:
-        conn = await get_db_connection()
+    async with get_connection() as conn:
         now = datetime.datetime.now()
 
         run_id = await conn.fetchval(
@@ -464,12 +372,6 @@ async def create_pipeline_run(task_type: str, total_products: int) -> int:
         )
 
         return run_id
-    except Exception as e:
-        logging.error(f"Error creating pipeline run: {e}")
-        raise
-    finally:
-        if conn:
-            await release_db_connection(conn)
 
 
 async def update_pipeline_run(
@@ -479,10 +381,7 @@ async def update_pipeline_run(
     status: Optional[str] = None,
 ):
     """Update pipeline run progress"""
-    conn = None
-    try:
-        conn = await get_db_connection()
-
+    async with get_connection() as conn:
         set_clauses: List[str] = []
         values: List[Any] = []
 
@@ -510,21 +409,12 @@ async def update_pipeline_run(
 
         await conn.execute(query, *values)
 
-    except Exception as e:
-        logging.error(f"Error updating pipeline run {run_id}: {e}")
-        raise
-    finally:
-        if conn:
-            await release_db_connection(conn)
-
 
 async def complete_pipeline_run(
     run_id: int, status: str, processed_products: int, failed_products: int
 ):
     """Mark pipeline run as completed"""
-    conn = None
-    try:
-        conn = await get_db_connection()
+    async with get_connection() as conn:
         now = datetime.datetime.now()
 
         await conn.execute(
@@ -540,19 +430,10 @@ async def complete_pipeline_run(
             run_id,
         )
 
-    except Exception as e:
-        logging.error(f"Error completing pipeline run {run_id}: {e}")
-        raise
-    finally:
-        if conn:
-            await release_db_connection(conn)
-
 
 async def get_pipeline_runs(limit: int = 100):
     """Get pipeline run history"""
-    conn = None
-    try:
-        conn = await get_db_connection()
+    async with get_connection() as conn:
         rows = await conn.fetch(
             """
             SELECT id, task_type, status, start_time, end_time, total_products, processed_products, failed_products
@@ -563,12 +444,6 @@ async def get_pipeline_runs(limit: int = 100):
             limit,
         )
         return [dict(row) for row in rows]
-    except Exception as e:
-        logging.error(f"Error fetching pipeline runs: {e}")
-        raise
-    finally:
-        if conn:
-            await release_db_connection(conn)
 
 
 # Initialize database pool on module import
