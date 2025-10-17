@@ -1,10 +1,11 @@
 #!/bin/bash
 
 # Set the OLLAMA_MODELS environment variable to store models in the project directory
-OLLAMA_MODELS_PATH="$(pwd)/data/ollama.models"
+OLLAMA_MODELS_PATH="$(pwd)/data/ollama_models"
 
 # Create a .env file for Docker Compose to use
-echo "OLLAMA_MODELS=${OLLAMA_MODELS_PATH}" > .env
+# TODO: use sed
+# echo "OLLAMA_MODELS=${OLLAMA_MODELS_PATH}" > .env
 
 echo "OLLAMA_MODELS is set to: ${OLLAMA_MODELS_PATH}"
 

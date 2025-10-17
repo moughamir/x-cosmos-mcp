@@ -10,9 +10,27 @@ import os
 from typing import Any, Dict, List, Optional
 
 import asyncpg
+from functools import wraps
 
 # Global connection pool for better performance
 _pool: Optional[asyncpg.Pool] = None
+
+
+def db_connection_decorator(func):
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        conn = None
+        try:
+            conn = await get_db_connection()
+            # Pass the connection as the first argument to the decorated function
+            return await func(conn, *args, **kwargs)
+        except Exception as e:
+            logging.error(f"Error in {func.__name__}: {e}")
+            raise
+        finally:
+            if conn:
+                await release_db_connection(conn)
+    return wrapper
 
 
 async def init_db_pool():
@@ -32,6 +50,8 @@ async def init_db_pool():
             command_timeout=60,
         )
         logging.info("PostgreSQL connection pool initialized.")
+    if conn:
+        await release_db_connection(conn)
 
 
 async def close_db_pool():
@@ -57,133 +77,255 @@ async def release_db_connection(conn):
         await _pool.release(conn)
 
 
-async def get_all_products():
+@db_connection_decorator
+async def get_all_products(conn):
     """Get all products for listing"""
-    conn = None
-    try:
-        conn = await get_db_connection()
-        rows = await conn.fetch(
-            "SELECT id, title, llm_confidence, gmc_category_label FROM products ORDER BY id"
-        )
-        return [dict(row) for row in rows]
-    except Exception as e:
-        logging.error(f"Error fetching products: {e}")
-        raise
-    finally:
-        if conn:
-            await release_db_connection(conn)
+    rows = await conn.fetch(
+        "SELECT id, title, llm_confidence, gmc_category_label FROM products ORDER BY id"
+    )
+    return [dict(row) for row in rows]
 
 
-async def get_product_details(product_id: int):
+@db_connection_decorator
+async def get_product_details(conn, product_id: int):
     """Get detailed product information including change history"""
-    conn = None
-    try:
-        conn = await get_db_connection()
+    # Get product details
+    product_row = await conn.fetchrow(
+        "SELECT * FROM products WHERE id = $1", product_id
+    )
 
-        # Get product details
-        product_row = await conn.fetchrow(
-            "SELECT * FROM products WHERE id = $1", product_id
-        )
+    if not product_row:
+        return {"product": None, "changes": []}
 
-        if not product_row:
-            return {"product": None, "changes": []}
+    # Get change history
+    changes_rows = await conn.fetch(
+        "SELECT * FROM changes_log WHERE product_id = $1 ORDER BY created_at DESC",
+        product_id,
+    )
 
-        # Get change history
-        changes_rows = await conn.fetch(
-            "SELECT * FROM changes_log WHERE product_id = $1 ORDER BY created_at DESC",
-            product_id,
-        )
-
-        return {
-            "product": dict(product_row),
-            "changes": [dict(change) for change in changes_rows],
-        }
-    except Exception as e:
-        logging.error(f"Error fetching product {product_id}: {e}")
-        raise
-    finally:
-        if conn:
-            await release_db_connection(conn)
+    return {
+        "product": dict(product_row),
+        "changes": [dict(change) for change in changes_rows],
+    }
 
 
-async def update_product_details(product_id: int, **kwargs):
+@db_connection_decorator
+async def update_product_details(conn, product_id: int, **kwargs):
     """Update product details or create if it doesn't exist"""
-    conn = None
-    try:
-        conn = await get_db_connection()
+    # Check if product exists
+    existing_product = await conn.fetchrow(
+        "SELECT id FROM products WHERE id = $1", product_id
+    )
 
-        # Check if product exists
-        existing_product = await conn.fetchrow(
-            "SELECT id FROM products WHERE id = $1", product_id
+    if existing_product:
+        # Update existing product
+        set_clauses: List[str] = []
+        values: List[Any] = []
+        param_count = 1
+
+        for field, value in kwargs.items():
+            set_clauses.append(f"{field} = ${param_count}")
+            values.append(value)
+            param_count += 1
+
+        if not set_clauses:
+            return
+
+        set_clauses.append(f"updated_at = ${param_count}")
+        values.append(datetime.datetime.now())
+
+        query = f"""
+            UPDATE products
+            SET {", ".join(set_clauses)}
+            WHERE id = ${param_count + 1}
+        """
+        values.append(product_id)
+
+        await conn.execute(query, *values)
+        logging.info(
+            f"Updated product {product_id} with fields: {list(kwargs.keys())}"
+        )
+    else:
+        # Create new product
+        insert_columns: List[str] = ["id"]
+        insert_values: List[Any] = [product_id]
+        value_placeholders: List[str] = ["$1"]
+        param_count = 2
+
+        for field, value in kwargs.items():
+            insert_columns.append(field)
+            insert_values.append(value)
+            value_placeholders.append(f"${param_count}")
+            param_count += 1
+
+        insert_columns.append("created_at")
+        insert_values.append(datetime.datetime.now())
+        value_placeholders.append(f"${param_count}")
+
+        insert_columns.append("updated_at")
+        insert_values.append(datetime.datetime.now())
+        value_placeholders.append(f"${param_count + 1}")
+
+        query = f"""
+            INSERT INTO products ({", ".join(insert_columns)})
+            VALUES ({", ".join(value_placeholders)})
+        """
+        await conn.execute(query, *insert_values)
+        logging.info(
+            f"Created new product {product_id} with fields: {list(kwargs.keys())}"
         )
 
-        if existing_product:
-            # Update existing product
-            set_clauses: List[str] = []
-            values: List[Any] = []
-            param_count = 1
 
-            for field, value in kwargs.items():
-                set_clauses.append(f"{field} = ${param_count}")
-                values.append(value)
-                param_count += 1
-
-            if not set_clauses:
-                return
-
-            set_clauses.append(f"updated_at = ${param_count}")
-            values.append(datetime.datetime.now())
-
-            query = f"""
-                UPDATE products
-                SET {", ".join(set_clauses)}
-                WHERE id = ${param_count + 1}
-            """
-            values.append(product_id)
-
-            await conn.execute(query, *values)
-            logging.info(
-                f"Updated product {product_id} with fields: {list(kwargs.keys())}"
-            )
-        else:
-            # Create new product
-            insert_columns: List[str] = ["id"]
-            insert_values: List[Any] = [product_id]
-            value_placeholders: List[str] = ["$1"]
-            param_count = 2
-
-            for field, value in kwargs.items():
-                insert_columns.append(field)
-                insert_values.append(value)
-                value_placeholders.append(f"${param_count}")
-                param_count += 1
-
-            insert_columns.append("created_at")
-            insert_values.append(datetime.datetime.now())
-            value_placeholders.append(f"${param_count}")
-
-            insert_columns.append("updated_at")
-            insert_values.append(datetime.datetime.now())
-            value_placeholders.append(f"${param_count + 1}")
-
-            query = f"""
-                INSERT INTO products ({", ".join(insert_columns)})
-                VALUES ({", ".join(value_placeholders)})
-            """
-            await conn.execute(query, *insert_values)
-            logging.info(
-                f"Created new product {product_id} with fields: {list(kwargs.keys())}"
-            )
-
-    except Exception as e:
-        logging.error(f"Error updating/creating product {product_id}: {e}")
-        raise
-    finally:
-        if conn:
-            await release_db_connection(conn)
+@db_connection_decorator
+async def get_products_batch(conn, limit: int = 10):
+    """Get products for batch processing (unprocessed items)"""
+    rows = await conn.fetch(
+        """
+        SELECT id, title, body_html, tags, category
+        FROM products
+        WHERE normalized_title IS NULL
+        LIMIT $1
+        """,
+        limit,
+    )
+    return [dict(row) for row in rows]
 
 
-async def get_products_batch(limit: int = 10):
+@db_connection_decorator
+async def get_products_for_review(conn, limit: int = 20):
+    """Get products for manual review"""
+    rows = await conn.fetch(
+        """
+        SELECT id, title, llm_title, llm_body_html, llm_tags, llm_category
+        FROM products
+        WHERE status = 'review'
+        ORDER BY updated_at DESC
+        LIMIT $1
+        """,
+        limit,
+    )
+    return [dict(row) for row in rows]
+
+
+@db_connection_decorator
+async def log_product_change(
+    conn,
+    product_id: int,
+    changed_fields: Dict[str, Any],
+    model_name: Optional[str] = None,
+):
+    """Log changes made to a product"""
+    await conn.execute(
+        """
+        INSERT INTO changes_log (product_id, changed_fields, model_name, created_at)
+        VALUES ($1, $2, $3, $4)
+        """,
+        product_id,
+        json.dumps(changed_fields),
+        model_name,
+        datetime.datetime.now(),
+    )
+
+
+@db_connection_decorator
+async def get_product_count(conn) -> int:
+    """Get total number of products"""
+    count = await conn.fetchval("SELECT COUNT(*) FROM products")
+    return count or 0
+
+
+@db_connection_decorator
+async def get_unprocessed_count(conn) -> int:
+    """Get number of unprocessed products"""
+    count = await conn.fetchval(
+        "SELECT COUNT(*) FROM products WHERE normalized_title IS NULL"
+    )
+    return count or 0
+
+
+@db_connection_decorator
+async def get_review_queue_count(conn) -> int:
+    """Get number of products in review queue"""
+    count = await conn.fetchval("SELECT COUNT(*) FROM products WHERE status = 'review'")
+    return count or 0
+
+
+@db_connection_decorator
+async def get_last_import_timestamp(conn) -> Optional[datetime.datetime]:
+    """Get timestamp of the last imported product"""
+    return await conn.fetchval("SELECT MAX(created_at) FROM products")
+
+
+@db_connection_decorator
+async def get_model_usage_stats(conn) -> List[Dict[str, Any]]:
+    """Get statistics on model usage"""
+    rows = await conn.fetch(
+        """
+        SELECT model_name, COUNT(*) as usage_count
+        FROM changes_log
+        WHERE model_name IS NOT NULL
+        GROUP BY model_name
+        ORDER BY usage_count DESC
+        """
+    )
+    return [dict(row) for row in rows]
+
+
+@db_connection_decorator
+async def get_category_distribution(conn) -> List[Dict[str, Any]]:
+    """Get distribution of products by category"""
+    rows = await conn.fetch(
+        """
+        SELECT gmc_category_label, COUNT(*) as product_count
+        FROM products
+        WHERE gmc_category_label IS NOT NULL
+        GROUP BY gmc_category_label
+        ORDER BY product_count DESC
+        """
+    )
+    return [dict(row) for row in rows]
+
+
+@db_connection_decorator
+async def get_confidence_score_distribution(conn) -> List[Dict[str, Any]]:
+    """Get distribution of LLM confidence scores"""
+    rows = await conn.fetch(
+        """
+        SELECT
+            width_bucket(llm_confidence, 0, 1, 10) as bucket,
+            MIN(llm_confidence) as min_score,
+            MAX(llm_confidence) as max_score,
+            COUNT(*) as product_count
+        FROM products
+        WHERE llm_confidence IS NOT NULL
+        GROUP BY bucket
+        ORDER BY bucket
+        """
+    )
+    return [dict(row) for row in rows]
+
+
+@db_connection_decorator
+async def get_recent_changes(conn, limit: int = 20) -> List[Dict[str, Any]]:
+    """Get recent changes from the log"""
+    rows = await conn.fetch(
+        """
+        SELECT cl.id, cl.product_id, p.title, cl.changed_fields, cl.model_name, cl.created_at
+        FROM changes_log cl
+        JOIN products p ON cl.product_id = p.id
+        ORDER BY cl.created_at DESC
+        LIMIT $1
+        """,
+        limit,
+    )
+    return [dict(row) for row in rows]
+
+
+@db_connection_decorator
+async def get_product_by_id(conn, product_id: int) -> Optional[Dict[str, Any]]:
+    """Fetch a single product by its ID."""
+    row = await conn.fetchrow("SELECT * FROM products WHERE id = $1", product_id)
+    return dict(row) if row else None
     """Get products for batch processing (unprocessed items)"""
     conn = None
     try:

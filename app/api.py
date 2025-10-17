@@ -10,6 +10,7 @@ from fastapi import (
     WebSocket,
 )
 from fastapi.middleware.cors import CORSMiddleware
+from functools import wraps
 
 from .config import settings
 from .pipeline import MultiModelSEOManager, TaskType, set_websocket_manager
@@ -140,15 +141,25 @@ app.add_middleware(
 api_router = APIRouter(prefix="/api")
 
 
+def api_error_handler(func):
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        try:
+            return await func(*args, **kwargs)
+        except HTTPException:
+            raise
+        except Exception as e:
+            logging.error(f"Error in {func.__name__}: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Internal server error")
+    return wrapper
+
+
 @api_router.get("/products")
+@api_error_handler
 async def get_products():
     """Get all products from the database."""
-    try:
-        products = await get_all_products()
-        return {"products": [dict(product) for product in products]}
-    except Exception as e:
-        logging.error(f"Error fetching products: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+    products = await get_all_products()
+    return {"products": [dict(product) for product in products]}
 
 
 @api_router.get("/products/batch")

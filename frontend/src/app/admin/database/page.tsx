@@ -39,7 +39,7 @@ export default function DatabasePage() {
     const fetchSchema = async () => {
       setIsLoading(true);
       try {
-        const response = await fetch('/api/db/schema');
+        const response = await fetch('/api/schema');
         if (!response.ok) {
           const errorData = await response.json();
           throw new Error(errorData.detail || 'Failed to fetch database schema');

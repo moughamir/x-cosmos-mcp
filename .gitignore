@@ -36,8 +36,8 @@ data/sqlite/*
 !data/sqlite/.gitkeep
 data/json/*
 !data/json/.gitkeep
-data/ollama.models/*
-!data/ollama.models/.gitkeep
+data/ollama_models/*
+!data/ollama_models/.gitkeep
 
 # Frontend build output
 views/admin/static/css/*

@@ -10,7 +10,7 @@ async def test_db_connection():
         conn = await asyncpg.connect(
             user=os.getenv("POSTGRES_USER", "mcp_user"),
             password=os.getenv("POSTGRES_PASSWORD", "mcp_password"),
-            host=os.getenv("POSTGRES_HOST", "postgres"),
+            host=os.getenv("POSTGRES_HOST", "localhost"),
             port=int(os.getenv("POSTGRES_PORT", 5432)),
             database=os.getenv("POSTGRES_DB", "mcp_db"),
         )
