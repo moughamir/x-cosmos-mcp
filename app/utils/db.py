@@ -30,6 +30,7 @@ def db_connection_decorator(func):
         finally:
             if conn:
                 await release_db_connection(conn)
+
     return wrapper
 
 
@@ -142,9 +143,7 @@ async def update_product_details(conn, product_id: int, **kwargs):
         values.append(product_id)
 
         await conn.execute(query, *values)
-        logging.info(
-            f"Updated product {product_id} with fields: {list(kwargs.keys())}"
-        )
+        logging.info(f"Updated product {product_id} with fields: {list(kwargs.keys())}")
     else:
         # Create new product
         insert_columns: List[str] = ["id"]

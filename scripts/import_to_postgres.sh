@@ -44,7 +44,7 @@ CREATE TEMP TABLE products_staging (
 \COPY products_staging FROM '$IMPORT_DIR/products.tsv' WITH (FORMAT csv, DELIMITER E'\t', NULL '');
 
 INSERT INTO products (id, title, handle, body_html, published_at, created_at, updated_at, vendor_id, product_type_id)
-SELECT 
+SELECT
     ps.id,
     ps.title,
     ps.handle,

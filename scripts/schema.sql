@@ -9,7 +9,7 @@ CREATE TABLE products (
     updated_at TIMESTAMP WITH TIME ZONE,
     vendor_id INTEGER REFERENCES vendors(id),
     product_type_id INTEGER REFERENCES product_types(id),
-    
+
     -- FTS vector column
     search_vector tsvector GENERATED ALWAYS AS (
         setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
@@ -116,7 +116,7 @@ RETURNS TABLE (
 ) AS $$
 BEGIN
     RETURN QUERY
-    SELECT 
+    SELECT
         p.id,
         p.title,
         ts_rank(p.search_vector, websearch_to_tsquery('english', search_query)) AS rank

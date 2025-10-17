@@ -77,9 +77,7 @@ async def import_products_from_json():
             )
             total_imported_count += imported_count
 
-        logger.info(
-            f"🎉 Total imported products: {total_imported_count}"
-        )
+        logger.info(f"🎉 Total imported products: {total_imported_count}")
 
     except Exception as e:
         logger.error(f"Error during product import: {e}")

@@ -43,7 +43,7 @@ find . -name "*.json" -exec jq -c '{
 ```bash
 # Sample data structure from first 5 files
 find . -name "*.json" | head -5 | xargs jq -c '{
-  id, title, vendor, 
+  id, title, vendor,
   variant_count: (.variants | length),
   image_count: (.images | length),
   tag_count: (.tags | length)
@@ -72,7 +72,7 @@ CREATE TABLE products (
     updated_at TIMESTAMP WITH TIME ZONE,
     vendor_id INTEGER REFERENCES vendors(id),
     product_type_id INTEGER REFERENCES product_types(id),
-    
+
     -- FTS vector column
     search_vector tsvector GENERATED ALWAYS AS (
         setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
@@ -179,7 +179,7 @@ RETURNS TABLE (
 ) AS $$
 BEGIN
     RETURN QUERY
-    SELECT 
+    SELECT
         p.id,
         p.title,
         ts_rank(p.search_vector, websearch_to_tsquery('english', search_query)) AS rank
@@ -266,7 +266,7 @@ def process_file(file_path: Path):
         return None
 
     product_id = data.get("id")
-    
+
     # Product data
     product_data = {
         "id": product_id,
@@ -318,7 +318,7 @@ def process_file(file_path: Path):
         }
         for img in data.get("images", [])
     ]
-    
+
     # Variant-Image relationships
     variant_images_data = [
         {"variant_id": variant_id, "image_id": image["id"]}
@@ -328,7 +328,7 @@ def process_file(file_path: Path):
 
     # Tags
     tags_data = data.get("tags", [])
-    
+
     # Product-Tag relationships
     product_tags_data = [{"product_id": product_id, "tag": tag} for tag in tags_data]
 
@@ -341,7 +341,7 @@ def process_file(file_path: Path):
         }
         for opt in data.get("options", [])
     ]
-    
+
     # Option Values
     option_values_data = [
         {
@@ -374,7 +374,7 @@ def write_batch_to_tsv(output_dir: Path, batch_data: dict):
     for key, data in batch_data.items():
         if not data:
             continue
-        
+
         file_path = output_dir / f"{key}.tsv"
         # Use 'a' mode to append to the file
         with file_path.open("a", newline="", encoding="utf-8") as f:
@@ -391,7 +391,7 @@ def write_batch_to_tsv(output_dir: Path, batch_data: dict):
 # -------------------------------------
 def main():
     OUTPUT_DIR.mkdir(exist_ok=True)
-    
+
     json_files = list(JSON_DIR.rglob("*.json"))
     if not json_files:
         print(f"❌ No JSON files found in {JSON_DIR}")
@@ -434,14 +434,14 @@ def main():
                             batch_data[key].extend(data)
                         elif isinstance(batch_data[key], set):
                             batch_data[key].update(data)
-                    
+
                     if len(batch_data["products"]) >= BATCH_SIZE:
                         write_batch_to_tsv(OUTPUT_DIR, batch_data)
                         # Clear lists after writing
                         for key in batch_data:
                             if isinstance(batch_data[key], list):
                                 batch_data[key].clear()
-                    
+
                     append_to_cache(path)
 
             except Exception as e:
@@ -449,7 +449,7 @@ def main():
 
     # Write any remaining data in the batch
     write_batch_to_tsv(OUTPUT_DIR, batch_data)
-    
+
     # Process unique sets (vendors, product_types, tags) and write to TSV
     for key in ["vendors", "product_types", "tags"]:
         with (OUTPUT_DIR / f"{key}.tsv").open("w", newline="", encoding="utf-8") as f:
@@ -521,7 +521,7 @@ CREATE TEMP TABLE products_staging (
 \COPY products_staging FROM '$IMPORT_DIR/products.tsv' WITH (FORMAT csv, DELIMITER E'\t', NULL '');
 
 INSERT INTO products (id, title, handle, body_html, published_at, created_at, updated_at, vendor_id, product_type_id)
-SELECT 
+SELECT
     ps.id,
     ps.title,
     ps.handle,
@@ -737,10 +737,10 @@ LIMIT 10;
 
 ### Search with Highlighting
 ```sql
-SELECT 
-    p.title, 
+SELECT
+    p.title,
     ts_headline('english', p.body_html, query, 'MaxWords=50') as snippet
-FROM products p, 
+FROM products p,
      websearch_to_tsquery('english', 'natural wood') query
 WHERE p.search_vector @@ query
 ORDER BY ts_rank(p.search_vector, query) DESC;
@@ -748,7 +748,7 @@ ORDER BY ts_rank(p.search_vector, query) DESC;
 
 ### Complex Query with Joins
 ```sql
-SELECT 
+SELECT
     p.id,
     p.title,
     v.name as vendor,
@@ -787,7 +787,7 @@ WHERE search_vector @@ to_tsquery('english', 'wood & natural & !plastic');
 
 ### Get Product with All Relations
 ```sql
-SELECT 
+SELECT
     p.*,
     v.name as vendor,
     pt.name as product_type,
@@ -850,15 +850,15 @@ SET standard_conforming_strings = on;
 ### Slow FTS Queries
 ```sql
 -- Check if index is being used
-EXPLAIN ANALYZE 
+EXPLAIN ANALYZE
 SELECT * FROM search_products('test');
 
 -- Update statistics
 ANALYZE products;
 
 -- Consider using different FTS configuration
-ALTER TABLE products 
-ALTER COLUMN search_vector TYPE tsvector 
+ALTER TABLE products
+ALTER COLUMN search_vector TYPE tsvector
 USING to_tsvector('simple', coalesce(title, ''));
 ```
 

@@ -36,7 +36,9 @@ def export_table_to_json(db_path: str, table_name: str, output_dir: str):
         with open(output_path, "w") as f:
             json.dump(data, f, indent=4)
 
-        logger.info(f"✅ Successfully exported {len(data)} rows from '{table_name}' to {output_path}")
+        logger.info(
+            f"✅ Successfully exported {len(data)} rows from '{table_name}' to {output_path}"
+        )
 
     except sqlite3.Error as e:
         logger.error(f"Error exporting table '{table_name}': {e}")
@@ -76,14 +78,14 @@ def main():
 
     # Tables to ignore
     ignored_tables = [
-        'products_fts',
-        'products_fts_data',
-        'products_fts_idx',
-        'products_fts_docsize',
-        'products_fts_config',
-        'sqlite_sequence',
-        'sqlite_stat1',
-        'sqlite_stat4'
+        "products_fts",
+        "products_fts_data",
+        "products_fts_idx",
+        "products_fts_docsize",
+        "products_fts_config",
+        "sqlite_sequence",
+        "sqlite_stat1",
+        "sqlite_stat4",
     ]
 
     for table in tables:

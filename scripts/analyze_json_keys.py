@@ -100,7 +100,9 @@ def main():
     processed_count = 0
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        futures = {executor.submit(extract_top_level_keys, path): path for path in to_process}
+        futures = {
+            executor.submit(extract_top_level_keys, path): path for path in to_process
+        }
 
         for future in tqdm(
             concurrent.futures.as_completed(futures),

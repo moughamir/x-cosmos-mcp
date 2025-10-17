@@ -151,6 +151,7 @@ def api_error_handler(func):
         except Exception as e:
             logging.error(f"Error in {func.__name__}: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail="Internal server error")
+
     return wrapper
 
 

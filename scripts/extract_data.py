@@ -27,6 +27,7 @@ CACHE_FILE = Path("processed_files.jsonl")
 MAX_WORKERS = 4
 BATCH_SIZE = 10
 
+
 # -------------------------------------
 # Helper Functions
 # -------------------------------------
@@ -69,7 +70,7 @@ def process_file(file_path: Path):
         return None
 
     product_id = data.get("id")
-    
+
     # Product data
     product_data = {
         "id": product_id,
@@ -95,7 +96,9 @@ def process_file(file_path: Path):
             "sku": v.get("sku"),
             "requires_shipping": v.get("requires_shipping"),
             "taxable": v.get("taxable"),
-            "featured_image_id": v.get("featured_image", {}).get("id") if v.get("featured_image") else None,
+            "featured_image_id": v.get("featured_image", {}).get("id")
+            if v.get("featured_image")
+            else None,
             "available": v.get("available"),
             "price": v.get("price"),
             "compare_at_price": v.get("compare_at_price"),
@@ -121,7 +124,7 @@ def process_file(file_path: Path):
         }
         for img in data.get("images", [])
     ]
-    
+
     # Variant-Image relationships
     variant_images_data = [
         {"variant_id": variant_id, "image_id": image["id"]}
@@ -131,7 +134,7 @@ def process_file(file_path: Path):
 
     # Tags
     tags_data = data.get("tags", [])
-    
+
     # Product-Tag relationships
     product_tags_data = [{"product_id": product_id, "tag": tag} for tag in tags_data]
 
@@ -144,7 +147,7 @@ def process_file(file_path: Path):
         }
         for opt in data.get("options", [])
     ]
-    
+
     # Option Values
     option_values_data = [
         {
@@ -156,7 +159,6 @@ def process_file(file_path: Path):
         for opt in data.get("options", [])
         for value in opt.get("values", [])
     ]
-
 
     return {
         "products": [product_data],
@@ -171,12 +173,13 @@ def process_file(file_path: Path):
         "option_values": option_values_data,
     }
 
+
 def write_batch_to_tsv(output_dir: Path, batch_data: dict):
     """Writes a batch of data to the corresponding TSV files."""
     for key, data in batch_data.items():
         if not data:
             continue
-        
+
         file_path = output_dir / f"{key}.tsv"
         # Use 'a' mode to append to the file
         with file_path.open("a", newline="", encoding="utf-8") as f:
@@ -193,7 +196,7 @@ def write_batch_to_tsv(output_dir: Path, batch_data: dict):
 # -------------------------------------
 def main():
     OUTPUT_DIR.mkdir(exist_ok=True)
-    
+
     json_files = list(JSON_DIR.rglob("*.json"))
     if not json_files:
         print(f"❌ No JSON files found in {JSON_DIR}")
@@ -236,14 +239,14 @@ def main():
                             batch_data[key].extend(data)
                         elif isinstance(batch_data[key], set):
                             batch_data[key].update(data)
-                    
+
                     if len(batch_data["products"]) >= BATCH_SIZE:
                         write_batch_to_tsv(OUTPUT_DIR, batch_data)
                         # Clear lists after writing
                         for key in batch_data:
                             if isinstance(batch_data[key], list):
                                 batch_data[key].clear()
-                    
+
                     append_to_cache(path)
 
             except Exception as e:
@@ -251,14 +254,13 @@ def main():
 
     # Write any remaining data in the batch
     write_batch_to_tsv(OUTPUT_DIR, batch_data)
-    
+
     # Process unique sets (vendors, product_types, tags) and write to TSV
     for key in ["vendors", "product_types", "tags"]:
         with (OUTPUT_DIR / f"{key}.tsv").open("w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f, delimiter="\t")
             for i, item in enumerate(sorted(list(batch_data[key])), 1):
                 writer.writerow([i, item])
-
 
     print("\n✅ ETL process completed successfully!")
     print(f"💾 Data extracted to: {OUTPUT_DIR}")
