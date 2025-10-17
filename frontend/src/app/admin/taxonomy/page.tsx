@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { fetchApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -48,7 +49,7 @@ export default function TaxonomyPage() {
     const fetchTaxonomies = async () => {
       setIsLoadingList(true);
       try {
-        const response = await fetch('/api/taxonomy');
+        const response = await fetchApi('/api/taxonomy');
         if (!response.ok) throw new Error('Failed to fetch taxonomy list');
         const data: { files: string[] } = await response.json();
         setTaxonomies(data.files);
@@ -71,7 +72,7 @@ export default function TaxonomyPage() {
     const fetchTaxonomyData = async () => {
       setIsLoadingTree(true);
       try {
-        const response = await fetch(`/api/taxonomy/${selectedTaxonomy}`);
+        const response = await fetchApi(`/api/taxonomy/${selectedTaxonomy}`);
         if (!response.ok) throw new Error('Failed to fetch taxonomy data');
         const data: { tree: TaxonomyNode[] } = await response.json();
         setTaxonomyData(data.tree);

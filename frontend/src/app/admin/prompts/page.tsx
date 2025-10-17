@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { fetchApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
@@ -31,7 +32,7 @@ export default function PromptsPage() {
     const fetchPrompts = async () => {
       setIsLoadingList(true);
       try {
-        const response = await fetch('/api/prompts');
+        const response = await fetchApi('/api/prompts');
         if (!response.ok) throw new Error('Failed to fetch prompts');
         const data: { prompts: PromptFile[] } = await response.json();
         setPrompts(data.prompts);
@@ -49,7 +50,7 @@ export default function PromptsPage() {
     setSelectedPrompt(prompt);
     setIsLoadingContent(true);
     try {
-      const response = await fetch(`/api/prompts/${prompt.name}`);
+      const response = await fetchApi(`/api/prompts/${prompt.path}`);
       if (!response.ok) throw new Error('Failed to fetch prompt content');
       const data: PromptContent = await response.json();
       setPromptContent(data.content);
@@ -67,13 +68,13 @@ export default function PromptsPage() {
 
     setIsSaving(true);
     try {
-      const response = await fetch(`/api/prompts/${selectedPrompt.name}`, {
+      const response = await fetchApi(`/api/prompts/${selectedPrompt.path}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: promptContent }),
       });
       if (!response.ok) throw new Error('Failed to save prompt');
-      toast.success(`Prompt "${selectedPrompt.name}" saved successfully.`);
+      toast.success(`Prompt "${selectedPrompt.filename}" saved successfully.`);
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : String(e);
       toast.error(`Failed to save prompt: ${errorMessage}`);
@@ -95,12 +96,12 @@ export default function PromptsPage() {
             <div className="space-y-2">
               {prompts.map((prompt) => (
                 <Button
-                  key={prompt.name}
-                  variant={selectedPrompt?.name === prompt.name ? 'secondary' : 'ghost'}
+                  key={prompt.path}
+                  variant={selectedPrompt?.path === prompt.path ? 'secondary' : 'ghost'}
                   className="w-full justify-start"
                   onClick={() => handlePromptSelect(prompt)}
                 >
-                  {prompt.name}
+                  {prompt.filename}
                 </Button>
               ))}
             </div>
@@ -110,7 +111,7 @@ export default function PromptsPage() {
 
       <Card className="md:col-span-2">
         <CardHeader>
-          <CardTitle>{selectedPrompt ? `Editing: ${selectedPrompt.name}` : 'Select a prompt'}</CardTitle>
+          <CardTitle>{selectedPrompt ? `Editing: ${selectedPrompt.filename}` : 'Select a prompt'}</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoadingContent ? (

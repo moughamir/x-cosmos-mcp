@@ -28,6 +28,8 @@ from .utils.db import (
     update_product_details,
 )
 from .utils.ollama_manager import list_ollama_models, pull_ollama_model
+from .utils.taxonomy import list_taxonomy_files, parse_taxonomy_file
+from .utils.prompts import get_prompt_files, get_prompt_content, save_prompt_content
 
 # Import worker pool for initialization
 from .worker_pool import initialize_worker_pool, shutdown_worker_pool
@@ -153,6 +155,59 @@ def api_error_handler(func):
             raise HTTPException(status_code=500, detail="Internal server error")
 
     return wrapper
+
+
+@api_router.get("/prompts")
+@api_error_handler
+async def get_prompts():
+    """Lists all available prompt files."""
+    prompts = get_prompt_files()
+    return {"prompts": prompts}
+
+
+@api_router.get("/prompts/{path:path}")
+@api_error_handler
+async def get_single_prompt(path: str):
+    """Gets the content of a single prompt file."""
+    content = get_prompt_content(path)
+    if content is None:
+        raise HTTPException(status_code=404, detail="Prompt file not found")
+    return {"path": path, "content": content}
+
+
+@api_router.post("/prompts/{path:path}")
+@api_error_handler
+async def save_single_prompt(path: str, request: dict):
+    """Saves content to a single prompt file."""
+    content = request.get("content")
+    if content is None:
+        raise HTTPException(status_code=400, detail="Content is required")
+    
+    success = save_prompt_content(path, content)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to save prompt file")
+    return {"message": "Prompt saved successfully"}
+
+
+@api_router.get("/taxonomy")
+@api_error_handler
+async def get_taxonomy_files():
+    """Lists all available taxonomy files."""
+    files = list_taxonomy_files()
+    return {"files": files}
+
+
+@api_router.get("/taxonomy/{filename}")
+@api_error_handler
+async def get_taxonomy_tree(filename: str):
+    """Returns the parsed tree structure for a given taxonomy file."""
+    if not filename.endswith(".txt") or "/" in filename or ".." in filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    
+    tree = parse_taxonomy_file(filename)
+    if not tree:
+        raise HTTPException(status_code=404, detail="Taxonomy file not found")
+    return {"tree": tree}
 
 
 @api_router.get("/products")
@@ -328,18 +383,22 @@ async def pull_ollama_model_endpoint(request: dict):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
+import asyncio
+from starlette.websockets import WebSocketDisconnect
+
 @app.websocket("/ws/pipeline-progress")
 async def websocket_pipeline_progress(websocket: WebSocket):
     """WebSocket endpoint for real-time pipeline progress updates."""
     await manager.connect(websocket, "pipeline_progress")
     try:
+        # Keep the connection alive indefinitely, without waiting for incoming messages.
         while True:
-            # Keep the connection alive and listen for messages
-            data = await websocket.receive_text()
-            # Echo back or handle specific commands if needed
-            await websocket.send_text(f"Echo: {data}")
+            await asyncio.sleep(3600) # Sleep for a long time.
+    except WebSocketDisconnect:
+        logging.info("Client disconnected from pipeline progress.")
     except Exception as e:
         logging.error(f"WebSocket error: {e}")
+    finally:
         manager.disconnect(websocket, "pipeline_progress")
 
 

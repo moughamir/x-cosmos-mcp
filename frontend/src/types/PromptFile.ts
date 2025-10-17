@@ -1,3 +1,4 @@
 export interface PromptFile {
-  name: string;
+  path: string;
+  filename: string;
 }

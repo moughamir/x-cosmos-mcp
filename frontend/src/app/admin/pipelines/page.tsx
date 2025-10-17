@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { fetchApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -35,7 +36,7 @@ export default function PipelineManagementPage() {
     const fetchAllProducts = async () => {
       setIsLoadingProducts(true);
       try {
-        const response = await fetch('/api/products', { cache: 'no-store' });
+        const response = await fetchApi('/api/products', { cache: 'no-store' });
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -73,7 +74,7 @@ export default function PipelineManagementPage() {
 
     setIsRunningPipeline(true);
     try {
-      const response = await fetch('/api/pipeline/run', {
+      const response = await fetchApi('/api/pipeline/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1,121 +1,94 @@
-import difflib
-import json
 import os
-from typing import Dict, List, Optional
+from pathlib import Path
+from typing import List, Dict, Any, Tuple, Set
+import functools
 
-# Use local taxonomy file instead of remote URL
-PROJECT_ROOT = os.path.dirname(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-)
-TAXONOMY_DIR = os.path.join(PROJECT_ROOT, "data", "taxonomy")
-CACHE_PATH = os.path.join(PROJECT_ROOT, ".cache", "taxonomy_tree_cache.json")
+from app.config import settings
 
+TAXONOMY_DIR = Path(settings.paths.prompt_dir).parent / "taxonomy"
 
-class TaxonomyNode:
-    def __init__(
-        self, name: str, full_path: str, parent: Optional["TaxonomyNode"] = None
-    ):
-        self.name = name
-        self.full_path = full_path
-        self.children: Dict[str, TaxonomyNode] = {}
-        self.parent = parent
+# --- Functions for Frontend Taxonomy Viewer ---
 
-    def to_dict(self):
-        return {
-            "name": self.name,
-            "full_path": self.full_path,
-            "children": {
-                name: child.to_dict() for name, child in self.children.items()
-            },
-        }
+def list_taxonomy_files() -> List[str]:
+    """Lists all available taxonomy .txt files."""
+    if not TAXONOMY_DIR.exists() or not TAXONOMY_DIR.is_dir():
+        return []
+    return sorted([f.name for f in TAXONOMY_DIR.glob("*.txt")])
 
-    @classmethod
-    def from_dict(cls, data: Dict, parent: Optional["TaxonomyNode"] = None):
-        node = cls(data["name"], data["full_path"], parent)
-        for child_name, child_data in data["children"].items():
-            node.children[child_name] = cls.from_dict(child_data, node)
-        return node
+def parse_taxonomy_file(filename: str) -> List[Dict[str, Any]]:
+    """Parses a single taxonomy file into a tree structure for the frontend."""
+    file_path = TAXONOMY_DIR / filename
+    if not file_path.exists():
+        return []
 
+    with open(file_path, 'r', encoding='utf-8') as f:
+        lines = [line.strip() for line in f if line.strip()]
 
-def load_taxonomy() -> Dict[str, TaxonomyNode]:
-    """Loads the Google taxonomy list from local files and builds a hierarchical tree."""
-    root_nodes: Dict[str, TaxonomyNode] = {}
-    if os.path.exists(CACHE_PATH):
-        with open(CACHE_PATH, "r") as f:
-            cached_data = json.load(f)
-            for name, data in cached_data.items():
-                root_nodes[name] = TaxonomyNode.from_dict(data)
-            return root_nodes
+    root_nodes: List[Dict[str, Any]] = []
+    node_map: Dict[str, Dict[str, Any]] = {}
 
-    print("Loading Google Product Taxonomy from local files and building tree...")
-    if not os.path.isdir(TAXONOMY_DIR):
-        raise FileNotFoundError(f"Taxonomy directory not found at {TAXONOMY_DIR}")
+    for i, line in enumerate(lines):
+        parts = [p.strip() for p in line.split('>')]
+        current_level_nodes = root_nodes
+        parent_path = ""
 
-    all_nodes: Dict[str, TaxonomyNode] = {}
+        for part_index, part in enumerate(parts):
+            current_path = f"{parent_path}>{part}" if parent_path else part
 
-    for filename in os.listdir(TAXONOMY_DIR):
-        if filename.endswith(".txt"):
-            with open(os.path.join(TAXONOMY_DIR, filename), "r", encoding="utf-8") as f:
-                for line in f.readlines():
-                    line = line.strip()
-                    if not line or line.startswith("#"):
-                        continue
+            if current_path not in node_map:
+                new_node = {
+                    "id": current_path,
+                    "name": part,
+                    "children": []
+                }
+                node_map[current_path] = new_node
+                current_level_nodes.append(new_node)
+            
+            current_level_nodes = node_map[current_path]["children"]
+            parent_path = current_path
 
-                    parts = line.split(" > ")
-                    current_parent: Optional[TaxonomyNode] = None
-                    current_path = []
-
-                    for i, part in enumerate(parts):
-                        current_path.append(part)
-                        full_path = " > ".join(current_path)
-
-                        if full_path not in all_nodes:
-                            node = TaxonomyNode(part, full_path, current_parent)
-                            all_nodes[full_path] = node
-
-                            if current_parent:
-                                current_parent.children[part] = node
-                            else:
-                                root_nodes[part] = node
-
-                        current_parent = all_nodes[full_path]
-
-    os.makedirs(os.path.dirname(CACHE_PATH), exist_ok=True)
-    with open(CACHE_PATH, "w") as f:
-        json.dump({name: node.to_dict() for name, node in root_nodes.items()}, f)
-
-    print(f"Built taxonomy tree with {len(root_nodes)} top-level categories.")
     return root_nodes
 
+# --- Functions for Backend Category Normalizer ---
 
-def find_best_category(
-    raw_category: str, taxonomy_tree: Dict[str, TaxonomyNode]
-) -> tuple[str, float]:
-    """Fuzzy matches a local category name to Google's hierarchical taxonomy."""
-    if not raw_category:
-        return ("Uncategorized", 0.0)
+@functools.lru_cache(maxsize=1)
+def load_taxonomy() -> List[str]:
+    """Loads all taxonomy files into a single list of strings."""
+    all_categories = []
+    for f in TAXONOMY_DIR.glob("*.txt"):
+        with open(f, 'r', encoding='utf-8') as file:
+            all_categories.extend([line.strip() for line in file if line.strip()])
+    return all_categories
 
-    best_match_path = "Uncategorized"
-    best_match_ratio = 0.0
+def find_best_category(product_category: str, taxonomy_tree: List[str]) -> Tuple[str, float]:
+    """Finds the best matching Google Product Category for a given product category string."""
+    if not product_category or not taxonomy_tree:
+        return "", 0.0
 
-    # Flatten the tree to get all full paths for matching
-    all_full_paths = []
-    queue = list(taxonomy_tree.values())
-    while queue:
-        node = queue.pop(0)
-        all_full_paths.append(node.full_path)
-        queue.extend(node.children.values())
+    product_words = set(product_category.lower().split())
+    best_match = ""
+    max_score = 0.0
 
-    matches = difflib.get_close_matches(raw_category, all_full_paths, n=1, cutoff=0.3)
-    if matches:
-        ratio = difflib.SequenceMatcher(None, raw_category, matches[0]).ratio()
-        best_match_path = matches[0]
-        best_match_ratio = round(ratio, 3)
+    for official_category in taxonomy_tree:
+        official_words = set(official_category.lower().replace('>', ' ').split())
+        
+        # Score based on word overlap
+        intersection = product_words.intersection(official_words)
+        union = product_words.union(official_words)
+        if not union:
+            continue
 
-    return (best_match_path, best_match_ratio)
+        score = len(intersection) / len(union) # Jaccard similarity
 
+        # Boost score for full phrase matches
+        if product_category.lower() in official_category.lower():
+            score += 0.1
 
-def get_top_level_categories() -> List[str]:
-    """Returns a list of top-level category names from the taxonomy tree."""
-    taxonomy_tree = load_taxonomy()
-    return sorted(list(taxonomy_tree.keys()))
+        if score > max_score:
+            max_score = score
+            best_match = official_category
+
+    # Normalize confidence to be between 0 and 1
+    confidence = min(max_score * 1.2, 1.0) # Amplify score slightly but cap at 1.0
+
+    return best_match, round(confidence, 2)

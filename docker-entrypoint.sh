@@ -1,16 +1,8 @@
 #!/bin/bash
 set -e
 
-# Wait for PostgreSQL to be ready
-echo "Waiting for PostgreSQL to be ready..."
-until python scripts/setup/03_healthcheck.py; do
-  echo "PostgreSQL is not ready yet. Waiting..."
-  sleep 2
-done
-
-# Run database migrations
-echo "Running database migrations..."
-python scripts/migrations/01_import_products_from_json.py
+# The docker-compose file's `depends_on` condition is now the sole mechanism
+# for ensuring the database is ready.
 
 # Start the main application
 echo "Starting application..."

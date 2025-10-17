@@ -3,6 +3,7 @@
 import { useState, useEffect, ChangeEvent, FormEvent } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { fetchApi } from '@/lib/api';
 import { Product } from '@/types/Product';
 import { ChangeLogEntry } from '@/types/ChangeLogEntry';
 import { Button } from '@/components/ui/button';
@@ -74,7 +75,7 @@ export default function ProductDetailPage() {
       setIsLoading(true);
       setError(null);
       try {
-        const response = await fetch(`/api/products/${productId}`);
+        const response = await fetchApi(`/api/products/${productId}`);
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -110,7 +111,7 @@ export default function ProductDetailPage() {
     setIsSaving(true);
     setError(null);
     try {
-      const response = await fetch(`/api/products/${productId}/update`, {
+      const response = await fetchApi(`/api/products/${productId}/update`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editedProduct),

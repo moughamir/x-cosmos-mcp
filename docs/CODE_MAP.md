@@ -23,11 +23,17 @@ This document provides a map of the codebase.
         -   `text_cleaner.py`: Text cleaning utilities.
         -   `tokenizer.py`: Tokenizer utilities.
 -   `scripts/`: Standalone scripts.
-    -   `configure_ollama.sh`: Script to configure Ollama.
-    -   `healthcheck.py`: Healthcheck script for Docker.
+    -   `analyze_json_keys.py`: Analyzes top-level keys in JSON data.
+    -   `compress_json_data.py`: Compresses JSON files to .gz format.
+    -   `export_sqlite_to_json.py`: Exports data from SQLite to JSON.
+    -   `extract_data.py`: Extracts and transforms data from (compressed) JSON files to (compressed) TSV files.
+    -   `get_product_structure.sh`: Shell script to get product structure.
+    -   `import_to_postgres.sh`: Imports (compressed) TSV data into PostgreSQL.
+    -   `mcp_server.py`: MCP server implementation.
+    -   `schema.sql`: PostgreSQL database schema.
+    -   `utils.py`: Utility functions for scripts.
     -   `migrations/`: Database migration scripts.
-        -   `migrate_sqlite_to_postgres.py`: Script to migrate data from SQLite to PostgreSQL.
-        -   `migrate_to_postgres.py`: Script to migrate the database to PostgreSQL.
+        -   `01_import_products_from_json.py`: Migration script to import products from JSON.
 
 ## Frontend
 

@@ -47,3 +47,4 @@ views/admin/static/js/*
 
 # Environment variables
 .env
+*.gz

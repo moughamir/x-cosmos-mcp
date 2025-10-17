@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import { fetchApi } from '@/lib/api';
 import { Product } from '@/types/Product';
 import {
   Card,
@@ -6,19 +6,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
+import { ProductTable } from './ProductTable';
 
 async function getProducts(): Promise<{ products: Product[] }> {
-  // Fetching from the proxied backend API
-  const res = await fetch('/api/products', {
+  const res = await fetchApi('/api/products', {
     cache: 'no-store',
   });
 
@@ -39,40 +30,7 @@ export default async function ProductsPage() {
         <CardTitle>Products</CardTitle>
       </CardHeader>
       <CardContent>
-        {products.length === 0 ? (
-          <p>No products found.</p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>ID</TableHead>
-                <TableHead>Title</TableHead>
-                <TableHead>Confidence</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {products.map((product) => (
-                <TableRow key={product.id}>
-                  <TableCell>{product.id}</TableCell>
-                  <TableCell>{product.title}</TableCell>
-                  <TableCell>
-                    {product.llm_confidence ? product.llm_confidence.toFixed(2) : 'N/A'}
-                  </TableCell>
-                  <TableCell>{product.gmc_category_label || 'N/A'}</TableCell>
-                  <TableCell>
-                    <Button asChild variant="outline" size="sm">
-                      <Link href={`/admin/products/${product.id}`}>
-                        View
-                      </Link>
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
+        <ProductTable products={products} />
       </CardContent>
     </Card>
   );

@@ -1,59 +1,59 @@
 # Complete Guide: JSON to PostgreSQL with FTS (Low-End Hardware Optimized)
 
-This guide provides a complete workflow for analyzing JSON product data, normalizing it, and importing it into PostgreSQL with Full-Text Search capabilities. Optimized for low-end hardware running Arch Linux.
+This guide provides a complete workflow for analyzing compressed JSON product data, normalizing it, and importing it into PostgreSQL with Full-Text Search capabilities. Optimized for low-end hardware running Arch Linux.
 
 ---
 
-## 1. Data Analysis Commands (jq)
+## 1. Data Analysis Commands (jq with compressed files)
 
 ### Quick Structure Analysis
 ```bash
 # Get all top-level keys across all files (streaming)
-find . -name "*.json" -type f -exec jq -c 'keys' {} \; | jq -s 'add | unique'
+find . -name "*.json.gz" -type f -exec gunzip -c {} \; | jq -c 'keys' | jq -s 'add | unique'
 
-# Check data types for each field
-jq -r 'to_entries | .[] | "\(.key): \(.value | type)"' your_file.json
+# Check data types for each field from a compressed file
+gunzip -c your_file.json.gz | jq -r 'to_entries | .[] | "\(.key): \(.value | type)"'
 
 # Count total records (without loading all into memory)
-find . -name "*.json" -type f | wc -l
+find . -name "*.json.gz" -type f | wc -l
 
 # Get the total number of JSON files
-find data/json/products_by_id -type f -name "*.json" | wc -l
+find data/json/products_by_id -type f -name "*.json.gz" | wc -l
 
 # Check total file size before processing
-du -sh *.json
+du -sh *.json.gz
 
 # Sample unique values for specific fields
-jq -r '.tags[]' *.json | sort -u | head -20
-jq -r '.vendor' *.json | sort -u
+find . -name "*.json.gz" -type f -exec gunzip -c {} \; | jq -r '.tags[]' | sort -u | head -20
+find . -name "*.json.gz" -type f -exec gunzip -c {} \; | jq -r '.vendor' | sort -u
 ```
 
 ### Array Size Analysis
 ```bash
 # Find max/min array sizes for variants, images, options, tags
-find . -name "*.json" -exec jq -c '{
+find . -name "*.json.gz" -exec gunzip -c {} \; | jq -c ({
   variants: (.variants | length),
   images: (.images | length),
   options: (.options | length),
   tags: (.tags | length)
-}' {} \; | jq -s 'group_by(keys[0]) | map({(.[0] | keys[0]): (map(.[keys[0]]) | {min: min, max: max, avg: (add/length)})})'
+}) | jq -s 'group_by(keys[0]) | map({(.[0] | keys[0]): (map(.[keys[0]]) | {min: min, max: max, avg: (add/length)})})'
 ```
 
 ### Data Quality Checks
 ```bash
 # Sample data structure from first 5 files
-find . -name "*.json" | head -5 | xargs jq -c '{
+find . -name "*.json.gz" | head -5 | xargs -I {} gunzip -c {} | jq -c ({
   id, title, vendor,
   variant_count: (.variants | length),
   image_count: (.images | length),
   tag_count: (.tags | length)
-}'
+})
 
 # Find data anomalies (products with no variants)
-find . -name "*.json" -exec jq -r 'select((.variants | length) == 0) | .id' {} \;
+find . -name "*.json.gz" -exec gunzip -c {} \; | jq -r 'select((.variants | length) == 0) | .id'
 
 # Check for missing required fields
-find . -name "*.json" -exec jq -r 'select(.title == null or .handle == null) | .id' {} \;
+find . -name "*.json.gz" -exec gunzip -c {} \; | jq -r 'select(.title == null or .handle == null) | .id'
 ```
 
 ---
@@ -199,8 +199,8 @@ $$ LANGUAGE plpgsql;
 """
 extract_data.py
 ----------------------------------------
-Multithreaded ETL script to extract data from JSON files and transform it into a
-PostgreSQL-friendly TSV format.
+Multithreaded ETL script to extract data from compressed JSON files and transform it into a
+PostgreSQL-friendly compressed TSV format.
 
 Optimized for low-end hardware with features like:
 - Multithreading
@@ -214,6 +214,7 @@ import concurrent.futures
 from pathlib import Path
 from tqdm import tqdm
 import csv
+import gzip
 
 # -------------------------------------
 # Configuration
@@ -233,10 +234,14 @@ def file_hash(path: Path) -> str:
 
 
 def safe_load_json(file_path: Path):
-    """Safely load a JSON file and return its content or None."""
+    """Safely load a JSON file (compressed or not) and return its content or None."""
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            return json.load(f)
+        if file_path.suffix == '.gz':
+            with gzip.open(file_path, 'rt', encoding='utf-8') as f:
+                return json.load(f)
+        else:
+            with open(file_path, "r", encoding="utf-8") as f:
+                return json.load(f)
     except (json.JSONDecodeError, OSError):
         return None
 
@@ -253,7 +258,7 @@ def append_to_cache(path: Path):
     """Append a file's hash to the cache."""
     with CACHE_FILE.open("a", encoding="utf-8") as f:
         json.dump({"path": str(path), "hash": file_hash(path)}, f)
-        f.write("\\n")
+        f.write("\n")
 
 
 def process_file(file_path: Path):
@@ -370,15 +375,15 @@ def process_file(file_path: Path):
 
 
 def write_batch_to_tsv(output_dir: Path, batch_data: dict):
-    """Writes a batch of data to the corresponding TSV files."""
+    """Writes a batch of data to the corresponding gzipped TSV files."""
     for key, data in batch_data.items():
         if not data:
             continue
 
-        file_path = output_dir / f"{key}.tsv"
-        # Use 'a' mode to append to the file
-        with file_path.open("a", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f, delimiter="\\t")
+        file_path = output_dir / f"{key}.tsv.gz"
+        # Use 'at' mode to append to the file in text mode
+        with gzip.open(file_path, "at", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f, delimiter="\t")
             for item in data:
                 if isinstance(item, dict):
                     writer.writerow(item.values())
@@ -392,7 +397,7 @@ def write_batch_to_tsv(output_dir: Path, batch_data: dict):
 def main():
     OUTPUT_DIR.mkdir(exist_ok=True)
 
-    json_files = list(JSON_DIR.rglob("*.json"))
+    json_files = list(JSON_DIR.rglob("*.json.gz"))
     if not json_files:
         print(f"❌ No JSON files found in {JSON_DIR}")
         return
@@ -452,13 +457,13 @@ def main():
 
     # Process unique sets (vendors, product_types, tags) and write to TSV
     for key in ["vendors", "product_types", "tags"]:
-        with (OUTPUT_DIR / f"{key}.tsv").open("w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f, delimiter="\\t")
+        with gzip.open(OUTPUT_DIR / f"{key}.tsv.gz", "wt", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f, delimiter="\t")
             for i, item in enumerate(sorted(list(batch_data[key])), 1):
                 writer.writerow([i, item])
 
 
-    print("\\n✅ ETL process completed successfully!")
+    print("\n✅ ETL process completed successfully!")
     print(f"💾 Data extracted to: {OUTPUT_DIR}")
 
 
@@ -476,7 +481,7 @@ if __name__ == "__main__":
 
 ```bash
 #!/bin/bash
-# Import TSV files into PostgreSQL
+# Import compressed TSV files into PostgreSQL
 # Usage: ./import_to_postgres.sh [database_name]
 
 set -e
@@ -486,22 +491,28 @@ IMPORT_DIR="./psql_import"
 
 echo "Importing data into PostgreSQL database: $DB_NAME"
 
-# Function to execute SQL
-psql_exec() {
-    psql -d "$DB_NAME" -c "$1"
+# Function to execute SQL from a file, handling compressed input
+psql_import_compressed() {
+    local file_path=$1
+    local copy_command=$2
+    if [ -f "$file_path" ]; then
+        gunzip -c "$file_path" | psql -d "$DB_NAME" -c "$copy_command"
+    else
+        echo "Warning: File not found, skipping: $file_path"
+    fi
 }
 
 # 1. Import vendors
 echo "Importing vendors..."
-psql_exec "COPY vendors(id, name) FROM STDIN WITH (FORMAT csv, DELIMITER E'\t', NULL '')" < "$IMPORT_DIR/vendors.tsv"
+psql_import_compressed "$IMPORT_DIR/vendors.tsv.gz" "COPY vendors(id, name) FROM STDIN WITH (FORMAT csv, DELIMITER E'\t', NULL '')"
 
 # 2. Import product types
 echo "Importing product types..."
-psql_exec "COPY product_types(id, name) FROM STDIN WITH (FORMAT csv, DELIMITER E'\t', NULL '')" < "$IMPORT_DIR/product_types.tsv"
+psql_import_compressed "$IMPORT_DIR/product_types.tsv.gz" "COPY product_types(id, name) FROM STDIN WITH (FORMAT csv, DELIMITER E'\t', NULL '')"
 
 # 3. Import tags
 echo "Importing tags..."
-psql_exec "COPY tags(id, name) FROM STDIN WITH (FORMAT csv, DELIMITER E'\t', NULL '')" < "$IMPORT_DIR/tags.tsv"
+psql_import_compressed "$IMPORT_DIR/tags.tsv.gz" "COPY tags(id, name) FROM STDIN WITH (FORMAT csv, DELIMITER E'\t', NULL '')"
 
 # 4. Import products (with vendor_id and product_type_id lookup)
 echo "Importing products..."
@@ -517,9 +528,9 @@ CREATE TEMP TABLE products_staging (
     vendor_name TEXT,
     product_type_name TEXT
 );
-
-\COPY products_staging FROM '$IMPORT_DIR/products.tsv' WITH (FORMAT csv, DELIMITER E'\t', NULL '');
-
+EOF
+psql_import_compressed "$IMPORT_DIR/products.tsv.gz" "\COPY products_staging FROM STDIN WITH (FORMAT csv, DELIMITER E'\t', NULL '')"
+psql -d "$DB_NAME" <<EOF
 INSERT INTO products (id, title, handle, body_html, published_at, created_at, updated_at, vendor_id, product_type_id)
 SELECT
     ps.id,
@@ -541,23 +552,15 @@ EOF
 
 # 5. Import variants
 echo "Importing variants..."
-psql -d "$DB_NAME" <<EOF
-\COPY variants(id, product_id, title, option1, option2, option3, sku, requires_shipping, taxable, featured_image_id, available, price, compare_at_price, grams, position, created_at, updated_at) FROM '$IMPORT_DIR/variants.tsv' WITH (FORMAT csv, DELIMITER E'\t', NULL '');
-EOF
+psql_import_compressed "$IMPORT_DIR/variants.tsv.gz" "\COPY variants(id, product_id, title, option1, option2, option3, sku, requires_shipping, taxable, featured_image_id, available, price, compare_at_price, grams, position, created_at, updated_at) FROM STDIN WITH (FORMAT csv, DELIMITER E'\t', NULL '')"
 
 # 6. Import images
 echo "Importing images..."
-psql -d "$DB_NAME" <<EOF
-\COPY images(id, product_id, position, src, width, height, created_at, updated_at) FROM '$IMPORT_DIR/images.tsv' WITH (FORMAT csv, DELIMITER E'\t', NULL '');
-EOF
+psql_import_compressed "$IMPORT_DIR/images.tsv.gz" "\COPY images(id, product_id, position, src, width, height, created_at, updated_at) FROM STDIN WITH (FORMAT csv, DELIMITER E'\t', NULL '')"
 
 # 7. Import variant-image relationships
 echo "Importing variant-image relationships..."
-if [ -s "$IMPORT_DIR/variant_images.tsv" ]; then
-    psql -d "$DB_NAME" <<EOF
-\COPY variant_images(variant_id, image_id) FROM '$IMPORT_DIR/variant_images.tsv' WITH (FORMAT csv, DELIMITER E'\t', NULL '');
-EOF
-fi
+psql_import_compressed "$IMPORT_DIR/variant_images.tsv.gz" "\COPY variant_images(variant_id, image_id) FROM STDIN WITH (FORMAT csv, DELIMITER E'\t', NULL '')"
 
 # 8. Import product-tag relationships
 echo "Importing product-tag relationships..."
@@ -566,9 +569,9 @@ CREATE TEMP TABLE product_tags_staging (
     product_id BIGINT,
     tag_name TEXT
 );
-
-\COPY product_tags_staging FROM '$IMPORT_DIR/product_tags.tsv' WITH (FORMAT csv, DELIMITER E'\t', NULL '');
-
+EOF
+psql_import_compressed "$IMPORT_DIR/product_tags.tsv.gz" "\COPY product_tags_staging FROM STDIN WITH (FORMAT csv, DELIMITER E'\t', NULL '')"
+psql -d "$DB_NAME" <<EOF
 INSERT INTO product_tags (product_id, tag_id)
 SELECT DISTINCT pts.product_id, t.id
 FROM product_tags_staging pts
@@ -593,10 +596,10 @@ CREATE TEMP TABLE option_values_staging (
     option_name TEXT,
     value TEXT
 );
-
-\COPY options_staging FROM '$IMPORT_DIR/options.tsv' WITH (FORMAT csv, DELIMITER E'\t', NULL '');
-\COPY option_values_staging FROM '$IMPORT_DIR/option_values.tsv' WITH (FORMAT csv, DELIMITER E'\t', NULL '');
-
+EOF
+psql_import_compressed "$IMPORT_DIR/options.tsv.gz" "\COPY options_staging FROM STDIN WITH (FORMAT csv, DELIMITER E'\t', NULL '')"
+psql_import_compressed "$IMPORT_DIR/option_values.tsv.gz" "\COPY option_values_staging FROM STDIN WITH (FORMAT csv, DELIMITER E'\t', NULL '')"
+psql -d "$DB_NAME" <<EOF
 -- Insert options
 INSERT INTO options (product_id, name, position)
 SELECT DISTINCT product_id, name, position
@@ -626,7 +629,7 @@ EOF
 
 # 11. Analyze tables for query optimization
 echo "Analyzing tables..."
-psql_exec "ANALYZE products; ANALYZE variants; ANALYZE images; ANALYZE tags; ANALYZE product_tags;"
+psql -d "$DB_NAME" -c "ANALYZE products; ANALYZE variants; ANALYZE images; ANALYZE tags; ANALYZE product_tags;"
 
 echo ""
 echo "Import complete!"
@@ -640,23 +643,26 @@ echo "  psql -d $DB_NAME -c \"SELECT * FROM search_products('sideboard');\""
 ## 5. Complete Workflow
 
 ```bash
-# Step 1: Analyze your data first (optional but recommended)
+# Step 1: Make scripts executable
+chmod +x scripts/compress_json_data.py scripts/extract_data.py scripts/import_to_postgres.sh
+
+# Step 2: Compress your JSON data
+./scripts/compress_json_data.py
+
+# Step 3: Analyze your data first (optional but recommended)
 ./scripts/analyze_json_keys.py
 
-# Step 2: Make scripts executable
-chmod +x scripts/extract_data.py scripts/import_to_postgres.sh
-
-# Step 3: Run ETL extraction (memory-efficient, processes one file at a time)
+# Step 4: Run ETL extraction (memory-efficient, processes one file at a time)
 ./scripts/extract_data.py
 
-# Step 4: Create database and apply schema
+# Step 5: Create database and apply schema
 createdb products_db
 psql -d products_db -f scripts/schema.sql
 
-# Step 5: Import data
+# Step 6: Import data
 ./scripts/import_to_postgres.sh products_db
 
-# Step 6: Test the database
+# Step 7: Test the database
 psql -d products_db -c "SELECT COUNT(*) FROM products;"
 psql -d products_db -c "SELECT * FROM search_products('natural sideboard');"
 ```
@@ -668,11 +674,11 @@ psql -d products_db -c "SELECT * FROM search_products('natural sideboard');"
 ### Process Large Datasets in Batches
 ```bash
 # Split files into batches of 1000
-ls *.json | split -l 1000 - batch_
+ls *.json.gz | split -l 1000 - batch_
 
 # Process each batch
 for batch in batch_*; do
-    cat $batch | xargs -I {} jq '...' {} >> output.tsv
+    cat $batch | xargs -I {} gunzip -c {} | jq '...' >> output.tsv
 done
 ```
 
@@ -832,10 +838,10 @@ LIMIT 20;
 ### Memory Issues During jq Processing
 ```bash
 # Process even smaller batches
-find . -name "*.json" | head -100 | xargs ...
+find . -name "*.json.gz" | head -100 | xargs ...
 
 # Use streaming parser
-jq -c '.' large_file.json | while read -r line; do
+gunzip -c large_file.json.gz | jq -c '.' | while read -r line; do
     echo "$line" | jq -r '...'
 done
 ```

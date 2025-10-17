@@ -47,10 +47,13 @@ export default function PipelineProgressPage() {
   const socketRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    // Construct WebSocket URL dynamically
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host;
-    const socketUrl = `${protocol}//${host}/ws/pipeline-progress`;
+    const getWebSocketUrl = () => {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const wsUrl = apiUrl.replace(/^(http)/, 'ws');
+      return `${wsUrl}/ws/pipeline-progress`;
+    };
+
+    const socketUrl = getWebSocketUrl();
 
     const connect = () => {
       socketRef.current = new WebSocket(socketUrl);

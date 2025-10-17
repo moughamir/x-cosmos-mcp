@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { fetchApi } from '@/lib/api';
 import {
   Card,
   CardContent,
@@ -23,7 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { ChangeLogEntry } from '@/types/ChangeLogEntry';
 
 async function getChanges(): Promise<{ changes: ChangeLogEntry[] }> {
-  const res = await fetch('/api/changes', {
+  const res = await fetchApi('/api/changes', {
     cache: 'no-store',
   });
 

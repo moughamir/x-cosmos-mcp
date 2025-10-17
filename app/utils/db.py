@@ -51,9 +51,6 @@ async def init_db_pool():
             command_timeout=60,
         )
         logging.info("PostgreSQL connection pool initialized.")
-    if conn:
-        await release_db_connection(conn)
-
 
 async def close_db_pool():
     """Close PostgreSQL connection pool"""
@@ -89,10 +86,16 @@ async def get_all_products(conn):
 
 @db_connection_decorator
 async def get_product_details(conn, product_id: int):
-    """Get detailed product information including change history"""
-    # Get product details
+    """Get detailed product information including change history and tags."""
+    # Get product details and aggregate tags
     product_row = await conn.fetchrow(
-        "SELECT * FROM products WHERE id = $1", product_id
+        """SELECT p.*, COALESCE(ARRAY_AGG(t.name) FILTER (WHERE t.name IS NOT NULL), '{}') as tags
+           FROM products p
+           LEFT JOIN product_tags pt ON p.id = pt.product_id
+           LEFT JOIN tags t ON pt.tag_id = t.id
+           WHERE p.id = $1
+           GROUP BY p.id""",
+        product_id
     )
 
     if not product_row:
@@ -180,9 +183,14 @@ async def get_products_batch(conn, limit: int = 10):
     """Get products for batch processing (unprocessed items)"""
     rows = await conn.fetch(
         """
-        SELECT id, title, body_html, tags, category
-        FROM products
-        WHERE normalized_title IS NULL
+        SELECT
+            p.id, p.title, p.body_html, p.category,
+            COALESCE(ARRAY_AGG(t.name) FILTER (WHERE t.name IS NOT NULL), '{}') as tags
+        FROM products p
+        LEFT JOIN product_tags pt ON p.id = pt.product_id
+        LEFT JOIN tags t ON pt.tag_id = t.id
+        WHERE p.normalized_title IS NULL
+        GROUP BY p.id
         LIMIT $1
         """,
         limit,
@@ -192,13 +200,13 @@ async def get_products_batch(conn, limit: int = 10):
 
 @db_connection_decorator
 async def get_products_for_review(conn, limit: int = 20):
-    """Get products for manual review"""
+    """Get products for manual review (low confidence scores)."""
     rows = await conn.fetch(
         """
-        SELECT id, title, llm_title, llm_body_html, llm_tags, llm_category
+        SELECT id, title, body_html, category, llm_confidence, gmc_category_label
         FROM products
-        WHERE status = 'review'
-        ORDER BY updated_at DESC
+        WHERE llm_confidence IS NOT NULL AND llm_confidence < 0.85
+        ORDER BY llm_confidence ASC
         LIMIT $1
         """,
         limit,
@@ -207,23 +215,17 @@ async def get_products_for_review(conn, limit: int = 20):
 
 
 @db_connection_decorator
-async def log_product_change(
-    conn,
-    product_id: int,
-    changed_fields: Dict[str, Any],
-    model_name: Optional[str] = None,
-):
-    """Log changes made to a product"""
-    await conn.execute(
-        """
-        INSERT INTO changes_log (product_id, changed_fields, model_name, created_at)
-        VALUES ($1, $2, $3, $4)
-        """,
-        product_id,
-        json.dumps(changed_fields),
-        model_name,
-        datetime.datetime.now(),
-    )
+async def get_all_vendors(conn) -> List[Dict[str, Any]]:
+    """Get all vendors from the database."""
+    rows = await conn.fetch("SELECT * FROM vendors ORDER BY name")
+    return [dict(row) for row in rows]
+
+
+@db_connection_decorator
+async def get_all_product_types(conn) -> List[Dict[str, Any]]:
+    """Get all product types from the database."""
+    rows = await conn.fetch("SELECT * FROM product_types ORDER BY name")
+    return [dict(row) for row in rows]
 
 
 @db_connection_decorator
@@ -244,8 +246,8 @@ async def get_unprocessed_count(conn) -> int:
 
 @db_connection_decorator
 async def get_review_queue_count(conn) -> int:
-    """Get number of products in review queue"""
-    count = await conn.fetchval("SELECT COUNT(*) FROM products WHERE status = 'review'")
+    """Get number of products in review queue (low confidence)."""
+    count = await conn.fetchval("SELECT COUNT(*) FROM products WHERE llm_confidence IS NOT NULL AND llm_confidence < 0.85")
     return count or 0
 
 
@@ -257,13 +259,13 @@ async def get_last_import_timestamp(conn) -> Optional[datetime.datetime]:
 
 @db_connection_decorator
 async def get_model_usage_stats(conn) -> List[Dict[str, Any]]:
-    """Get statistics on model usage"""
+    """Get statistics on model usage by source."""
     rows = await conn.fetch(
         """
-        SELECT model_name, COUNT(*) as usage_count
+        SELECT source, COUNT(*) as usage_count
         FROM changes_log
-        WHERE model_name IS NOT NULL
-        GROUP BY model_name
+        WHERE source LIKE 'pipeline_%'
+        GROUP BY source
         ORDER BY usage_count DESC
         """
     )
@@ -309,7 +311,7 @@ async def get_recent_changes(conn, limit: int = 20) -> List[Dict[str, Any]]:
     """Get recent changes from the log"""
     rows = await conn.fetch(
         """
-        SELECT cl.id, cl.product_id, p.title, cl.changed_fields, cl.model_name, cl.created_at
+        SELECT cl.id, cl.product_id, p.title, cl.field, cl.source, cl.created_at
         FROM changes_log cl
         JOIN products p ON cl.product_id = p.id
         ORDER BY cl.created_at DESC
