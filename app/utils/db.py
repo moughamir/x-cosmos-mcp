@@ -4,6 +4,7 @@ Uses asyncpg for high-performance async database operations
 """
 
 import datetime
+import decimal
 import json
 import logging
 import os
@@ -52,6 +53,7 @@ async def init_db_pool():
         )
         logging.info("PostgreSQL connection pool initialized.")
 
+
 async def close_db_pool():
     """Close PostgreSQL connection pool"""
     global _pool
@@ -85,21 +87,131 @@ async def get_all_products(conn):
 
 
 @db_connection_decorator
+async def get_products_paginated(
+    conn,
+    page: int = 1,
+    limit: int = 10,
+    search: Optional[str] = None,
+    category: Optional[str] = None,
+    min_confidence: Optional[float] = None,
+    max_confidence: Optional[float] = None,
+):
+    """Get products with pagination and filtering"""
+    offset = (page - 1) * limit
+
+    # Build WHERE clause
+    where_clauses = []
+    params: List[Any] = []
+    param_count = 1
+
+    if search:
+        where_clauses.append(
+            f"(title ILIKE ${param_count} OR body_html ILIKE ${param_count})"
+        )
+        params.append(f"%{search}%")
+        param_count += 1
+
+    if category:
+        where_clauses.append(f"gmc_category_label ILIKE ${param_count}")
+        params.append(f"%{category}%")
+        param_count += 1
+
+    if min_confidence is not None:
+        where_clauses.append(f"llm_confidence >= ${param_count}")
+        params.append(min_confidence)
+        param_count += 1
+
+    if max_confidence is not None:
+        where_clauses.append(f"llm_confidence <= ${param_count}")
+        params.append(max_confidence)
+        param_count += 1
+
+    where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+
+    # Get total count
+    count_query = f"SELECT COUNT(*) FROM products {where_sql}"
+    total = await conn.fetchval(count_query, *params)
+
+    # Get paginated products
+    query = f"""
+        SELECT id, title, llm_confidence, gmc_category_label,
+               vendor_id, product_type_id, created_at, updated_at
+        FROM products
+        {where_sql}
+        ORDER BY id
+        LIMIT ${param_count} OFFSET ${param_count + 1}
+    """
+    params.extend([limit, offset])
+
+    rows = await conn.fetch(query, *params)
+    products = [dict(row) for row in rows]
+
+    return {
+        "products": products,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "total_pages": (total + limit - 1) // limit,
+    }
+
+
+@db_connection_decorator
 async def get_product_details(conn, product_id: int):
-    """Get detailed product information including change history and tags."""
-    # Get product details and aggregate tags
-    product_row = await conn.fetchrow(
-        """SELECT p.*, COALESCE(ARRAY_AGG(t.name) FILTER (WHERE t.name IS NOT NULL), '{}') as tags
-           FROM products p
-           LEFT JOIN product_tags pt ON p.id = pt.product_id
-           LEFT JOIN tags t ON pt.tag_id = t.id
-           WHERE p.id = $1
-           GROUP BY p.id""",
-        product_id
-    )
+    """Get detailed product information including change history, tags, images, variants, and options."""
+    query = """
+        SELECT
+            p.*,
+            v.name as vendor_name,
+            pt.name as product_type_name,
+            COALESCE(ARRAY_AGG(DISTINCT t.name) FILTER (WHERE t.name IS NOT NULL), '{}') as tags,
+            COALESCE(JSON_AGG(DISTINCT jsonb_build_object(
+                'id', i.id,
+                'src', i.src,
+                'position', i.position,
+                'width', i.width,
+                'height', i.height
+            )) FILTER (WHERE i.id IS NOT NULL), '[]') as images,
+            COALESCE(JSON_AGG(DISTINCT jsonb_build_object(
+                'id', var.id,
+                'title', var.title,
+                'price', var.price,
+                'sku', var.sku,
+                'option1', var.option1,
+                'option2', var.option2,
+                'option3', var.option3
+            )) FILTER (WHERE var.id IS NOT NULL), '[]') as variants,
+            COALESCE(JSON_AGG(DISTINCT jsonb_build_object(
+                'id', opt.id,
+                'name', opt.name,
+                'position', opt.position,
+                'values', (SELECT COALESCE(JSON_AGG(ov.value ORDER BY ov.value), '[]') FROM option_values ov WHERE ov.option_id = opt.id)
+            )) FILTER (WHERE opt.id IS NOT NULL), '[]') as options
+        FROM products p
+        LEFT JOIN vendors v ON p.vendor_id = v.id
+        LEFT JOIN product_types pt ON p.product_type_id = pt.id
+        LEFT JOIN product_tags ptag ON p.id = ptag.product_id
+        LEFT JOIN tags t ON ptag.tag_id = t.id
+        LEFT JOIN images i ON p.id = i.product_id
+        LEFT JOIN variants var ON p.id = var.product_id
+        LEFT JOIN options opt ON p.id = opt.product_id
+        WHERE p.id = $1
+        GROUP BY p.id, v.name, pt.name
+    """
+    product_row = await conn.fetchrow(query, product_id)
 
     if not product_row:
         return {"product": None, "changes": []}
+
+    # Convert product row to dict and parse JSON fields
+    product_dict = dict(product_row)
+
+    # Parse JSON fields if they're strings (asyncpg may return them as JSON strings)
+    for field in ["images", "variants", "options", "tags"]:
+        if field in product_dict and isinstance(product_dict[field], str):
+            try:
+                product_dict[field] = json.loads(product_dict[field])
+            except (json.JSONDecodeError, TypeError):
+                product_dict[field] = []
 
     # Get change history
     changes_rows = await conn.fetch(
@@ -108,7 +220,7 @@ async def get_product_details(conn, product_id: int):
     )
 
     return {
-        "product": dict(product_row),
+        "product": product_dict,
         "changes": [dict(change) for change in changes_rows],
     }
 
@@ -179,23 +291,64 @@ async def update_product_details(conn, product_id: int, **kwargs):
 
 
 @db_connection_decorator
-async def get_products_batch(conn, limit: int = 10):
+async def update_product_tags(conn, product_id: int, tags: List[str]):
+    """Update product tags (many-to-many relationship)"""
+    # First, remove all existing tags for this product
+    await conn.execute("DELETE FROM product_tags WHERE product_id = $1", product_id)
+
+    # Then, add the new tags
+    for tag_name in tags:
+        if not tag_name or not tag_name.strip():
+            continue
+
+        tag_name = tag_name.strip()
+
+        # Insert tag if it doesn't exist, get its ID
+        tag_id = await conn.fetchval(
+            """
+            INSERT INTO tags (name)
+            VALUES ($1)
+            ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+            RETURNING id
+            """,
+            tag_name,
+        )
+
+        # Link tag to product
+        await conn.execute(
+            """
+            INSERT INTO product_tags (product_id, tag_id)
+            VALUES ($1, $2)
+            ON CONFLICT DO NOTHING
+            """,
+            product_id,
+            tag_id,
+        )
+
+    logging.info(f"Updated tags for product {product_id}: {tags}")
+
+
+async def get_products_batch(limit: int = 10):
     """Get products for batch processing (unprocessed items)"""
-    rows = await conn.fetch(
-        """
-        SELECT
-            p.id, p.title, p.body_html, p.category,
-            COALESCE(ARRAY_AGG(t.name) FILTER (WHERE t.name IS NOT NULL), '{}') as tags
-        FROM products p
-        LEFT JOIN product_tags pt ON p.id = pt.product_id
-        LEFT JOIN tags t ON pt.tag_id = t.id
-        WHERE p.normalized_title IS NULL
-        GROUP BY p.id
-        LIMIT $1
-        """,
-        limit,
-    )
-    return [dict(row) for row in rows]
+    conn = None
+    try:
+        conn = await get_db_connection()
+        rows = await conn.fetch(
+            """
+            SELECT id, title, body_html, category, vendor_id, product_type_id
+            FROM products
+            WHERE normalized_title IS NULL
+            LIMIT $1
+            """,
+            limit,
+        )
+        return [dict(row) for row in rows]
+    except Exception as e:
+        logging.error(f"Error fetching products batch: {e}")
+        raise
+    finally:
+        if conn:
+            await release_db_connection(conn)
 
 
 @db_connection_decorator
@@ -247,7 +400,9 @@ async def get_unprocessed_count(conn) -> int:
 @db_connection_decorator
 async def get_review_queue_count(conn) -> int:
     """Get number of products in review queue (low confidence)."""
-    count = await conn.fetchval("SELECT COUNT(*) FROM products WHERE llm_confidence IS NOT NULL AND llm_confidence < 0.85")
+    count = await conn.fetchval(
+        "SELECT COUNT(*) FROM products WHERE llm_confidence IS NOT NULL AND llm_confidence < 0.85"
+    )
     return count or 0
 
 
@@ -327,50 +482,6 @@ async def get_product_by_id(conn, product_id: int) -> Optional[Dict[str, Any]]:
     """Fetch a single product by its ID."""
     row = await conn.fetchrow("SELECT * FROM products WHERE id = $1", product_id)
     return dict(row) if row else None
-    """Get products for batch processing (unprocessed items)"""
-    conn = None
-    try:
-        conn = await get_db_connection()
-        rows = await conn.fetch(
-            """
-            SELECT id, title, body_html, tags, category
-            FROM products
-            WHERE normalized_title IS NULL
-            LIMIT $1
-            """,
-            limit,
-        )
-        return [dict(row) for row in rows]
-    except Exception as e:
-        logging.error(f"Error fetching products batch: {e}")
-        raise
-    finally:
-        if conn:
-            await release_db_connection(conn)
-
-
-async def get_products_for_review(limit: int = 10):
-    """Get products that need review (low confidence scores)"""
-    conn = None
-    try:
-        conn = await get_db_connection()
-        rows = await conn.fetch(
-            """
-            SELECT id, title, normalized_title, body_html, normalized_body_html, llm_confidence
-            FROM products
-            WHERE llm_confidence < 0.7
-            ORDER BY llm_confidence ASC
-            LIMIT $1
-            """,
-            limit,
-        )
-        return [dict(row) for row in rows]
-    except Exception as e:
-        logging.error(f"Error fetching products for review: {e}")
-        raise
-    finally:
-        if conn:
-            await release_db_connection(conn)
 
 
 async def get_db_schema() -> List[Dict[str, Any]]:
@@ -466,6 +577,23 @@ async def mark_as_reviewed(product_id: int):
             await release_db_connection(conn)
 
 
+def _serialize_for_json(obj: Any) -> Optional[str]:
+    """Serialize object to JSON, handling datetime and decimal objects"""
+    if obj is None:
+        return None
+
+    def default_handler(o):
+        if isinstance(o, datetime.datetime):
+            return o.isoformat()
+        elif isinstance(o, datetime.date):
+            return o.isoformat()
+        elif isinstance(o, decimal.Decimal):
+            return float(o)
+        raise TypeError(f"Object of type {type(o)} is not JSON serializable")
+
+    return json.dumps(obj, default=default_handler)
+
+
 async def log_change(pid: int, field: str, old: Any, new: Any, source: str):
     """Log a change to the database"""
     conn = None
@@ -478,8 +606,8 @@ async def log_change(pid: int, field: str, old: Any, new: Any, source: str):
             """,
             pid,
             field,
-            json.dumps(old) if old is not None else None,
-            json.dumps(new) if new is not None else None,
+            _serialize_for_json(old),
+            _serialize_for_json(new),
             source,
             datetime.datetime.now(),
         )

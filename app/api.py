@@ -1,7 +1,7 @@
+import datetime
 import logging
 from contextlib import asynccontextmanager
-from typing import Dict, List
-
+from typing import Dict, List, Optional
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -11,7 +11,6 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 from functools import wraps
-
 from .config import settings
 from .pipeline import MultiModelSEOManager, TaskType, set_websocket_manager
 from .utils.db import (
@@ -26,6 +25,7 @@ from .utils.db import (
     mark_as_reviewed,
     update_database_schema,
     update_product_details,
+    update_product_tags,
 )
 from .utils.ollama_manager import list_ollama_models, pull_ollama_model
 from .utils.taxonomy import list_taxonomy_files, parse_taxonomy_file
@@ -33,6 +33,8 @@ from .utils.prompts import get_prompt_files, get_prompt_content, save_prompt_con
 
 # Import worker pool for initialization
 from .worker_pool import initialize_worker_pool, shutdown_worker_pool
+import asyncio
+from starlette.websockets import WebSocketDisconnect, WebSocketState
 
 
 # WebSocket connection manager for real-time updates
@@ -51,21 +53,32 @@ class ConnectionManager:
 
     def disconnect(self, websocket: WebSocket, channel: str):
         if channel in self.active_connections:
-            self.active_connections[channel].remove(websocket)
+            try:
+                self.active_connections[channel].remove(websocket)
+            except ValueError:
+                # WebSocket already removed (e.g., during broadcast cleanup)
+                pass
 
     async def broadcast(self, message: dict, channel: str):
         if channel in self.active_connections:
             disconnected = []
             for connection in self.active_connections[channel]:
                 try:
-                    await connection.send_json(message)
+                    # Check if connection is still open before sending
+                    if connection.client_state == WebSocketState.CONNECTED:
+                        await connection.send_json(message)
+                    else:
+                        disconnected.append(connection)
                 except Exception as e:
-                    logging.error(f"Error broadcasting message: {e}")
+                    logging.warning(f"Error broadcasting to client: {e}")
                     disconnected.append(connection)
 
             # Remove disconnected connections
             for conn in disconnected:
-                self.active_connections[channel].remove(conn)
+                try:
+                    self.active_connections[channel].remove(conn)
+                except ValueError:
+                    pass  # Already removed
 
 
 # Global connection manager instance
@@ -90,7 +103,6 @@ async def lifespan(app: FastAPI):
 
         await init_db_pool()
         logging.info("Database connection pool initialized successfully")
-
         # Define task handlers
         task_handlers = {
             TaskType.META_OPTIMIZATION.value: seo_manager.optimize_meta_tags,
@@ -182,7 +194,7 @@ async def save_single_prompt(path: str, request: dict):
     content = request.get("content")
     if content is None:
         raise HTTPException(status_code=400, detail="Content is required")
-    
+
     success = save_prompt_content(path, content)
     if not success:
         raise HTTPException(status_code=500, detail="Failed to save prompt file")
@@ -203,7 +215,7 @@ async def get_taxonomy_tree(filename: str):
     """Returns the parsed tree structure for a given taxonomy file."""
     if not filename.endswith(".txt") or "/" in filename or ".." in filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
-    
+
     tree = parse_taxonomy_file(filename)
     if not tree:
         raise HTTPException(status_code=404, detail="Taxonomy file not found")
@@ -212,10 +224,26 @@ async def get_taxonomy_tree(filename: str):
 
 @api_router.get("/products")
 @api_error_handler
-async def get_products():
-    """Get all products from the database."""
-    products = await get_all_products()
-    return {"products": [dict(product) for product in products]}
+async def get_products(
+    page: int = 1,
+    limit: int = 50,
+    search: Optional[str] = None,
+    category: Optional[str] = None,
+    min_confidence: Optional[float] = None,
+    max_confidence: Optional[float] = None,
+):
+    """Get products with pagination and filtering."""
+    from .utils.db import get_products_paginated
+
+    result = await get_products_paginated(
+        page=page,
+        limit=limit,
+        search=search,
+        category=category,
+        min_confidence=min_confidence,
+        max_confidence=max_confidence,
+    )
+    return result
 
 
 @api_router.get("/products/batch")
@@ -267,11 +295,42 @@ async def update_product(product_id: int, updates: dict):
         original_product_details = await get_product_details(product_id)
         original_product = original_product_details["product"]
 
-        # Update or create the product
-        await update_product_details(product_id, **updates)
+        # Filter out read-only/computed fields that shouldn't be updated directly
+        # These are JOIN results or computed fields, not actual columns in products table
+        readonly_fields = {
+            "vendor_name",
+            "product_type_name",
+            "images",
+            "variants",
+            "options",
+            "created_at",
+            "updated_at",  # These are auto-managed
+        }
 
-        # Log changes for each field being updated
-        for field, new_value in updates.items():
+        # Extract tags separately (they need special handling via junction table)
+        tags = updates.pop("tags", None)
+
+        filtered_updates = {
+            k: v for k, v in updates.items() if k not in readonly_fields
+        }
+
+        # Update or create the product with filtered fields
+        await update_product_details(product_id, **filtered_updates)
+
+        # Handle tags separately if provided
+        if tags is not None:
+            # Convert tags to list if it's a string or array
+            if isinstance(tags, str):
+                tags_list = [t.strip() for t in tags.split(",") if t.strip()]
+            elif isinstance(tags, list):
+                tags_list = tags
+            else:
+                tags_list = []
+
+            await update_product_tags(product_id, tags_list)
+
+        # Log changes for each field being updated (only filtered fields)
+        for field, new_value in filtered_updates.items():
             # Only log if the field existed and changed, or if it's a new field being set
             if (
                 original_product
@@ -357,7 +416,7 @@ async def get_ollama_models():
                 }
             )
 
-        return transformed_models
+        return {"models": transformed_models}
     except Exception as e:
         logging.error(f"Error fetching Ollama models: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -383,21 +442,37 @@ async def pull_ollama_model_endpoint(request: dict):
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-import asyncio
-from starlette.websockets import WebSocketDisconnect
-
 @app.websocket("/ws/pipeline-progress")
 async def websocket_pipeline_progress(websocket: WebSocket):
     """WebSocket endpoint for real-time pipeline progress updates."""
     await manager.connect(websocket, "pipeline_progress")
     try:
-        # Keep the connection alive indefinitely, without waiting for incoming messages.
+        # Send initial data when client connects
+        pipeline_runs = await get_pipeline_runs(limit=10)
+        # Convert datetime objects to ISO format strings for JSON serialization
+        runs_dict = []
+        for run in pipeline_runs:
+            run_dict = dict(run)
+            for key, value in run_dict.items():
+                if isinstance(value, datetime.datetime):
+                    run_dict[key] = value.isoformat()
+            runs_dict.append(run_dict)
+
+        await websocket.send_json({"type": "initial_data", "pipeline_runs": runs_dict})
+
+        # Keep the connection alive by periodically sending a ping.
         while True:
-            await asyncio.sleep(3600) # Sleep for a long time.
+            # Check if connection is still open before sending
+            if websocket.client_state != WebSocketState.CONNECTED:
+                break
+            await websocket.send_json(
+                {"type": "ping", "timestamp": datetime.datetime.now().isoformat()}
+            )
+            await asyncio.sleep(25)  # Send ping every 25 seconds
     except WebSocketDisconnect:
         logging.info("Client disconnected from pipeline progress.")
     except Exception as e:
-        logging.error(f"WebSocket error: {e}")
+        logging.error(f"WebSocket error: {e}", exc_info=True)
     finally:
         manager.disconnect(websocket, "pipeline_progress")
 

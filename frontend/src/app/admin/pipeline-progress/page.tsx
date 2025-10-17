@@ -5,6 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Progress } from '@/components/ui/progress';
 import { toast } from "sonner";
 import { PipelineRun } from '@/types/PipelineRun';
 
@@ -41,8 +42,17 @@ function ProgressTableSkeleton() {
   );
 }
 
+interface CurrentProgress {
+  id: number;
+  processed: number;
+  failed: number;
+  total: number;
+  percentage: number;
+}
+
 export default function PipelineProgressPage() {
   const [pipelineRuns, setPipelineRuns] = useState<PipelineRun[]>([]);
+  const [currentProgress, setCurrentProgress] = useState<CurrentProgress | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const socketRef = useRef<WebSocket | null>(null);
 
@@ -66,18 +76,30 @@ export default function PipelineProgressPage() {
 
       socketRef.current.onmessage = (event) => {
         try {
-          const data = JSON.parse(event.data);
+          if (typeof event.data === 'string') { // Ensure data is a string before parsing
+            const data = JSON.parse(event.data);
 
-          if (data.type === 'initial_data' || data.type === 'pipeline_runs_update') {
-            setPipelineRuns(data.pipeline_runs || []);
-          } else if (data.type === 'pipeline_progress_update' && data.pipeline_runs) {
-            setPipelineRuns(prevRuns => {
-              const runsMap = new Map(prevRuns.map(run => [run.id, run]));
-              data.pipeline_runs.forEach((updatedRun: PipelineRun) => {
-                runsMap.set(updatedRun.id, { ...runsMap.get(updatedRun.id), ...updatedRun });
-              });
-              return Array.from(runsMap.values()).sort((a, b) => b.id - a.id);
-            });
+            if (data.type === 'initial_data' || data.type === 'pipeline_runs_update') {
+              setPipelineRuns(data.pipeline_runs || []);
+            } else if (data.type === 'pipeline_progress_update') {
+              // Update current progress if available
+              if (data.current_run) {
+                setCurrentProgress(data.current_run);
+              }
+
+              // Update pipeline runs list
+              if (data.pipeline_runs) {
+                setPipelineRuns(prevRuns => {
+                  const runsMap = new Map(prevRuns.map(run => [run.id, run]));
+                  data.pipeline_runs.forEach((updatedRun: PipelineRun) => {
+                    runsMap.set(updatedRun.id, { ...runsMap.get(updatedRun.id), ...updatedRun });
+                  });
+                  return Array.from(runsMap.values()).sort((a, b) => b.id - a.id);
+                });
+              }
+            }
+          } else {
+            console.warn("Received non-string WebSocket message:", event.data);
           }
         } catch (e) {
           console.error("Error processing WebSocket message:", e);
@@ -128,6 +150,24 @@ export default function PipelineProgressPage() {
         <CardTitle>Pipeline Progress</CardTitle>
       </CardHeader>
       <CardContent>
+        {/* Live Progress Indicator */}
+        {currentProgress && (
+          <div className="mb-6 p-4 border rounded-lg bg-muted/50">
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="text-sm font-medium">Current Pipeline Run #{currentProgress.id}</h3>
+              <span className="text-sm text-muted-foreground">
+                {currentProgress.processed + currentProgress.failed} / {currentProgress.total} products
+              </span>
+            </div>
+            <Progress value={currentProgress.percentage} className="h-2 mb-2" />
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>✓ Processed: {currentProgress.processed}</span>
+              <span>✗ Failed: {currentProgress.failed}</span>
+              <span>{currentProgress.percentage.toFixed(1)}% Complete</span>
+            </div>
+          </div>
+        )}
+
         {isLoading ? (
           <ProgressTableSkeleton />
         ) : pipelineRuns.length === 0 ? (

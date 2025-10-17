@@ -55,6 +55,7 @@ class Models(BaseModel):
     concurrency: int
     batch_size: int
     timeout: int
+    quantized_models: Dict[str, str] = {}  # Map of model -> quantized version
 
 
 class Paths(BaseModel):

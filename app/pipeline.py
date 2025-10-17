@@ -2,9 +2,12 @@ import json
 import logging
 import re
 from typing import Any, Dict, List
+import asyncio
+import jinja2
+from jinja2 import nodes
+from jinja2.ext import Extension
 
 import httpx
-import jinja2
 from bs4 import BeautifulSoup
 
 from .config import TaskType, settings
@@ -17,6 +20,7 @@ from .utils.db import (
     log_change,
     update_pipeline_run,
     update_product_details,
+    update_product_tags,
 )
 from .utils.tokenizer import truncate_text_to_tokens
 
@@ -40,8 +44,22 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+# Custom Jinja2 extension to handle {% system %} tags
+class SystemExtension(Extension):
+    """Extension to handle system message blocks in templates."""
+
+    tags = {"system"}
+
+    def parse(self, parser):
+        lineno = next(parser.stream).lineno
+        # Parse until we hit {% endsystem %}
+        parser.parse_statements(["name:endsystem"], drop_needle=True)
+        # Return an empty output node - we'll handle system messages separately
+        return nodes.Output([], lineno=lineno)
+
+
 prompt_loader = jinja2.FileSystemLoader(searchpath=settings.paths.prompt_dir)
-prompt_env = jinja2.Environment(loader=prompt_loader)
+prompt_env = jinja2.Environment(loader=prompt_loader, extensions=[SystemExtension])
 
 
 class MultiModelSEOManager:
@@ -96,7 +114,14 @@ class MultiModelSEOManager:
         quantize = product_data.get("quantize", False)
         model = await self.get_best_model_for_task(TaskType.META_OPTIMIZATION)
         template = prompt_env.get_template("meta_optimization.j2")
-        prompt = template.render(product_data=product_data, clean_html=self._clean_html)
+
+        # Create a wrapper function for clean_html that templates can call with just HTML
+        def clean_html_wrapper(html):
+            return self._clean_html(html, model, 500)
+
+        prompt = template.render(
+            product_data=product_data, clean_html=clean_html_wrapper
+        )
         return await self._call_model_with_fallback(
             model, prompt, task_type=TaskType.META_OPTIMIZATION, quantize=quantize
         )
@@ -106,7 +131,13 @@ class MultiModelSEOManager:
         quantize = product_data.get("quantize", False)
         model = await self.get_best_model_for_task(TaskType.CONTENT_REWRITING)
         template = prompt_env.get_template("rewrite_content.j2")
-        prompt = template.render(product_data=product_data, clean_html=self._clean_html)
+
+        def clean_html_wrapper(html):
+            return self._clean_html(html, model, 800)
+
+        prompt = template.render(
+            product_data=product_data, clean_html=clean_html_wrapper
+        )
         return await self._call_model_with_fallback(
             model, prompt, task_type=TaskType.CONTENT_REWRITING, quantize=quantize
         )
@@ -116,7 +147,13 @@ class MultiModelSEOManager:
         quantize = product_data.get("quantize", False)
         model = await self.get_best_model_for_task(TaskType.KEYWORD_ANALYSIS)
         template = prompt_env.get_template("analyze_keywords.j2")
-        prompt = template.render(product_data=product_data, clean_html=self._clean_html)
+
+        def clean_html_wrapper(html):
+            return self._clean_html(html, model, 600)
+
+        prompt = template.render(
+            product_data=product_data, clean_html=clean_html_wrapper
+        )
         return await self._call_model_with_fallback(
             model, prompt, task_type=TaskType.KEYWORD_ANALYSIS, quantize=quantize
         )
@@ -159,7 +196,7 @@ class MultiModelSEOManager:
             current_model = model
             try:
                 result = await self._call_ollama_model(
-                    current_model, prompt, quantize=quantize
+                    current_model, prompt, task_type, quantize=quantize
                 )
                 if result and self._validate_response(result, task_type):
                     logger.info(
@@ -183,7 +220,11 @@ class MultiModelSEOManager:
         return self._rule_based_fallback(task_type, prompt)
 
     async def _call_ollama_model(
-        self, model: str, prompt: str, quantize: bool = False
+        self,
+        model: str,
+        prompt: str,
+        task_type: TaskType,  # Add task_type to determine if system prompt is needed
+        quantize: bool = False,
     ) -> Dict[str, Any]:
         """Make actual call to Ollama model"""
         if quantize:
@@ -195,19 +236,34 @@ class MultiModelSEOManager:
         else:
             capabilities = {"max_tokens": 1024}
 
+        # Extract system message if present in the prompt and prepend it
+        system_message = ""
+        system_match = re.search(
+            r"^\s*{%\s*system\s*%}(.*?){%\s*endsystem\s*%}\s*\n?", prompt, re.DOTALL
+        )
+        if system_match:
+            system_message = system_match.group(1).strip()
+            prompt = prompt[
+                system_match.end() :
+            ].strip()  # Remove system block from prompt
+            # Prepend system message to prompt for Ollama compatibility
+            prompt = f"{system_message}\n\n{prompt}"
+
+        payload = {
+            "model": model,
+            "prompt": prompt,
+            "stream": False,
+            "options": {
+                "temperature": 0.3,
+                "top_p": 0.9,
+                "num_predict": capabilities.get("max_tokens", 1024),
+            },
+        }
+
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 f"{self.ollama_url}/api/generate",
-                json={
-                    "model": model,
-                    "prompt": prompt,
-                    "stream": False,
-                    "options": {
-                        "temperature": 0.3,
-                        "top_p": 0.9,
-                        "num_predict": capabilities.get("max_tokens", 1024),
-                    },
-                },
+                json=payload,
                 timeout=500,
             )
 
@@ -223,13 +279,39 @@ class MultiModelSEOManager:
             # Try to extract JSON from response
             json_match = re.search(r"\{.*\}", response, re.DOTALL)
             if json_match:
-                return json.loads(json_match.group())
+                json_str = json_match.group()
+                try:
+                    return json.loads(json_str)
+                except json.JSONDecodeError as e:
+                    logging.warning(
+                        f"Initial JSON parse failed: {e}, attempting cleanup..."
+                    )
+                    # Try to fix common JSON issues
+                    cleaned_json = self._clean_json(json_str)
+                    return json.loads(cleaned_json)
         except json.JSONDecodeError as e:
-            logging.error(f"JSON decoding error in model response: {e}")
+            logging.error(f"JSON decoding error after cleanup: {e}")
+            logging.error(f"Response content: {response[:500]}")
             pass
 
         # Fallback: return raw response
         return {"raw_response": response, "error": "JSON parsing failed"}
+
+    def _clean_json(self, json_str: str) -> str:
+        """Clean common JSON formatting issues from LLM responses"""
+        # Remove trailing commas before closing braces/brackets
+        json_str = re.sub(r",(\s*[}\]])", r"\1", json_str)
+        # Remove comments (// and /* */)
+        json_str = re.sub(r"//.*?$", "", json_str, flags=re.MULTILINE)
+        json_str = re.sub(r"/\*.*?\*/", "", json_str, flags=re.DOTALL)
+        # Fix single quotes to double quotes (but be careful with apostrophes)
+        # Only replace single quotes that are clearly used as string delimiters
+        json_str = re.sub(r"'([^']*)'(\s*:)", r'"\1"\2', json_str)  # Keys
+        json_str = re.sub(r":\s*'([^']*)'", r': "\1"', json_str)  # Values
+        # Remove trailing commas at end of objects/arrays
+        json_str = re.sub(r",\s*}", "}", json_str)
+        json_str = re.sub(r",\s*]", "]", json_str)
+        return json_str
 
     def _validate_response(self, response: Dict[str, Any], task_type: TaskType) -> bool:
         """Validate that response contains required fields"""
@@ -312,9 +394,17 @@ class MultiModelSEOManager:
         if websocket_manager:
             try:
                 from .utils.db import get_pipeline_runs
+                import datetime
 
                 runs = await get_pipeline_runs(limit=10)
-                runs_dict = [dict(run) for run in runs]
+                # Convert datetime objects to ISO format strings for JSON serialization
+                runs_dict = []
+                for run in runs:
+                    run_dict = dict(run)
+                    for key, value in run_dict.items():
+                        if isinstance(value, datetime.datetime):
+                            run_dict[key] = value.isoformat()
+                    runs_dict.append(run_dict)
 
                 await websocket_manager.broadcast(
                     {
@@ -346,8 +436,20 @@ class MultiModelSEOManager:
         """
         product_id = product_data.get("id")
         if product_id:
-            await normalize_categories(product_ids=[product_id])
-            return {"status": "completed", "normalized_id": product_id}
+            result = await normalize_categories(product_ids=[product_id])
+            if result:
+                return {
+                    "status": "completed",
+                    "normalized_id": product_id,
+                    "normalized_category": result.get("normalized_category"),
+                    "category_confidence": result.get("category_confidence"),
+                    "original_category": result.get("original_category"),
+                }
+            return {
+                "status": "completed",
+                "normalized_id": product_id,
+                "message": "No category to normalize",
+            }
         return {"status": "error", "message": "No product ID found"}
 
     async def batch_process_products(
@@ -425,6 +527,8 @@ class MultiModelSEOManager:
 
                         # Update product in DB and log change
                         update_data = {}
+                        optimized_tags = None
+
                         if "meta_title" in result.result:
                             update_data["title"] = result.result["meta_title"]
                         if "optimized_title" in result.result:
@@ -434,10 +538,35 @@ class MultiModelSEOManager:
                                 "optimized_description"
                             ]
                         if "optimized_tags" in result.result:
-                            update_data["tags"] = result.result["optimized_tags"]
+                            # Extract tags for separate handling
+                            optimized_tags = result.result["optimized_tags"]
+                        if "normalized_category" in result.result:
+                            update_data["normalized_category"] = result.result[
+                                "normalized_category"
+                            ]
+                        if "category_confidence" in result.result:
+                            update_data["category_confidence"] = result.result[
+                                "category_confidence"
+                            ]
 
                         if update_data:
                             await update_product_details(product_id, **update_data)
+
+                        # Handle tags separately via many-to-many relationship
+                        if optimized_tags is not None:
+                            # Convert tags to list if it's a string
+                            if isinstance(optimized_tags, str):
+                                tags_list = [
+                                    t.strip()
+                                    for t in optimized_tags.split(",")
+                                    if t.strip()
+                                ]
+                            elif isinstance(optimized_tags, list):
+                                tags_list = optimized_tags
+                            else:
+                                tags_list = []
+
+                            await update_product_tags(product_id, tags_list)
 
                         await log_change(
                             product_id,
