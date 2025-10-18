@@ -79,23 +79,12 @@ export default function PipelineProgressPage() {
           if (typeof event.data === 'string') { // Ensure data is a string before parsing
             const data = JSON.parse(event.data);
 
-            if (data.type === 'initial_data' || data.type === 'pipeline_runs_update') {
-              setPipelineRuns(data.pipeline_runs || []);
-            } else if (data.type === 'pipeline_progress_update') {
-              // Update current progress if available
+            if (data.type === 'initial_data' || data.type === 'pipeline_progress_update') {
+              if (data.pipeline_runs) {
+                setPipelineRuns(data.pipeline_runs);
+              }
               if (data.current_run) {
                 setCurrentProgress(data.current_run);
-              }
-
-              // Update pipeline runs list
-              if (data.pipeline_runs) {
-                setPipelineRuns(prevRuns => {
-                  const runsMap = new Map(prevRuns.map(run => [run.id, run]));
-                  data.pipeline_runs.forEach((updatedRun: PipelineRun) => {
-                    runsMap.set(updatedRun.id, { ...runsMap.get(updatedRun.id), ...updatedRun });
-                  });
-                  return Array.from(runsMap.values()).sort((a, b) => b.id - a.id);
-                });
               }
             }
           } else {

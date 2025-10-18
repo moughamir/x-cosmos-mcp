@@ -19,6 +19,5 @@ node_modules
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
-frontend/
 frontend.old/
 views/

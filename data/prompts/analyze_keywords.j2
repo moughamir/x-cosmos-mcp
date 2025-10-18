@@ -1,47 +1,6 @@
-{% system %}
-You are an expert keyword analyst. Your task is to perform a comprehensive keyword analysis for e-commerce products.
-{% endsystem %}
-
-**Task:** Analyze the keywords for the following product.
-
-**Product Details:**
-*   **Title:** {{ product_data.get('title', '') }}
-*   **Description:** {{ clean_html(product_data.get('body_html', ''))[:800] }}
-*   **Current Tags:** {{ product_data.get('tags', '') }}
-
-**Instructions:**
-1.  Identify the primary keywords with high search volume.
-2.  Find relevant long-tail keywords.
-3.  Suggest potential competitor keywords.
-4.  Estimate the keyword difficulty (low, medium, or high).
-5.  Respond with a valid JSON object with the following keys: `primary_keywords`, `long_tail_keywords`, `competitor_terms`, `difficulty_estimate`.
-
-**Example Input:**
-```json
 {
-    "title": "Organic Green Tea",
-    "description": "A refreshing and healthy green tea made from organic tea leaves. Rich in antioxidants and perfect for a morning boost.",
-    "tags": "green tea, organic, healthy, tea"
+  "primary_keywords": {{ [product_data.get('title','')] | tojson }},
+  "long_tail_keywords": [],
+  "competitor_terms": [],
+  "difficulty_estimate": "unknown"
 }
-```
-
-**Example Output:**
-```json
-{
-    "primary_keywords": ["organic green tea", "green tea"],
-    "long_tail_keywords": ["buy organic green tea online", "best organic green tea for weight loss"],
-    "competitor_terms": ["matcha green tea", "sencha green tea"],
-    "difficulty_estimate": "medium"
-}
-```
-
-**Product to Analyze:**
-```json
-{
-    "title": "{{ product_data.get('title', '') }}",
-    "description": "{{ clean_html(product_data.get('body_html', ''))[:800] }}",
-    "tags": "{{ product_data.get('tags', '') }}"
-}
-```
-
-**Keyword Analysis (JSON):**

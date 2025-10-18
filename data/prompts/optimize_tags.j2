@@ -1,52 +1,6 @@
-SYSTEM_INSTRUCTION:
-You are an expert SEO tag optimizer. Your task is to analyze and optimize product tags for e-commerce products.
-END_SYSTEM_INSTRUCTION
-
-**Task:** Analyze and optimize the tags for the following product.
-
-**Product Details:**
-*   **Title:** {{ title }}
-*   **Category:** {{ category }}
-*   **Current Tags:** {{ current_tags }}
-*   **Description:** {{ description[:800] }}
-
-**Instructions:**
-1.  Analyze the current tags and generate a new list of SEO-optimized tags.
-2.  The new tags should include primary keywords, relevant long-tail keywords, and maintain brand/product specificity.
-3.  Remove any redundant or irrelevant tags.
-4.  Ensure the optimized tags are a comma-separated string.
-5.  Provide a list of the tags that were removed and the tags that were added.
-6.  Provide a brief analysis of the changes made.
-7.  Respond with a valid JSON object with the following keys: `optimized_tags`, `removed_tags`, `added_tags`, `tag_analysis`.
-
-**Example Input:**
-```json
 {
-    "title": "Handmade Leather Journal",
-    "category": "Office Supplies",
-    "current_tags": "journal, notebook, leather, handmade",
-    "description": "A beautiful handmade leather journal with 200 lined pages. Perfect for writing, sketching, or as a travel diary."
+  "optimized_tags": "{{ current_tags | default(product_data.get('tags','')) }}",
+  "removed_tags": [],
+  "added_tags": [],
+  "tag_analysis": "simplified"
 }
-```
-
-**Example Output:**
-```json
-{
-    "optimized_tags": "handmade leather journal, writing journal, leather notebook, travel diary, gift for writers",
-    "removed_tags": ["notebook", "leather", "handmade"],
-    "added_tags": ["handmade leather journal", "writing journal", "leather notebook", "travel diary", "gift for writers"],
-    "tag_analysis": "Consolidated and replaced generic tags with more specific, long-tail keywords to improve search relevance."
-}
-```
-
-**Product to Optimize:**
-```json
-{
-    "title": "{{ title }}",
-    "category": "{{ category }}",
-    "current_tags": "{{ current_tags }}",
-    "description": "{{ description[:800] }}"
-}
-```
-
-**Optimized Tags (JSON):**

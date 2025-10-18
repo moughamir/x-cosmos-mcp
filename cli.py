@@ -19,7 +19,7 @@ from app.worker_pool import initialize_worker_pool, shutdown_worker_pool
 async def run_workflow(
     task_types: List[TaskType],
     product_ids: List[int],
-    quantize: bool = False,
+    quantize: bool = True,
     manager: Optional[MultiModelSEOManager] = None,
 ) -> dict:
     """Run a workflow (single or multiple tasks) on products."""

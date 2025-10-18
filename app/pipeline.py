@@ -85,28 +85,24 @@ class MultiModelSEOManager:
         raise Exception("No models available")
 
     async def _check_model_availability(self, model_name: str) -> bool:
-        """Check if a model is available in Ollama"""
+        """Check if a model is available in Ollama using a single, efficient call."""
         try:
             async with httpx.AsyncClient() as client:
-                # First check if model exists in the tags list
-                response = await client.get(f"{self.ollama_url}/api/tags", timeout=5)
-                if response.status_code == 200:
-                    tags_data = response.json()
-                    available_models = [
-                        model["name"] for model in tags_data.get("models", [])
-                    ]
-                    if model_name in available_models:
-                        return True
-
-                # Fallback to generation test with shorter timeout
                 response = await client.post(
-                    f"{self.ollama_url}/api/generate",
-                    json={"model": model_name, "prompt": "test", "stream": False},
-                    timeout=500,
+                    f"{self.ollama_url}/api/show",
+                    json={"name": model_name},
+                    timeout=10,
                 )
+                # A 200 OK means the model is available.
+                # A 404 Not Found means it is not.
                 return response.status_code == 200
+        except httpx.RequestError as e:
+            # This catches connection errors, timeouts, etc.
+            logger.error(f"Error checking model availability for '{model_name}': {e}")
+            return False
         except Exception as e:
-            logging.error(f"Error checking model availability: {e}")
+            # Catch any other unexpected errors
+            logger.error(f"Unexpected error checking model availability: {e}")
             return False
 
     async def optimize_meta_tags(self, product_data: Dict[str, Any]) -> Dict[str, Any]:

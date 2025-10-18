@@ -1,15 +1,11 @@
-You are a product data normalization assistant.
+You are a product taxonomy normalizer. Respond with ONLY valid JSON (no explanations).
+Input:
+{
+  "title": {{ (product_data.title or '') | tojson }},
+  "product_type": {{ (product_data.product_type or '') | tojson }},
+  "description": {{ (product_data.description or '') | tojson }},
+  "sample_categories": {{ (product_data.sample_categories or []) | tojson }}
+}
 
-Normalize this product title for an e-commerce database.
-Rules:
-- Remove redundant brand mentions.
-- Capitalize correctly.
-- Keep under 80 characters.
-- No promotional text (e.g. “Best”, “Cheap”).
-- Keep product-specific details.
-
-Product Title: "{{ title }}"
-Category: "{{ category or '' }}"
-Tags: "{{ tags or '' }}"
-
-Return only the new normalized title.
+Return exactly:
+{"category": "<best matching Google taxonomy category>"}

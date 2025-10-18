@@ -227,67 +227,40 @@ async def get_product_details(conn, product_id: int):
 
 @db_connection_decorator
 async def update_product_details(conn, product_id: int, **kwargs):
-    """Update product details or create if it doesn't exist"""
-    # Check if product exists
-    existing_product = await conn.fetchrow(
-        "SELECT id FROM products WHERE id = $1", product_id
+    """Update product details using an atomic UPSERT operation."""
+    if not kwargs:
+        return
+
+    # Add product_id to the dictionary for insertion
+    kwargs["id"] = product_id
+
+    # Ensure updated_at is always set
+    kwargs["updated_at"] = datetime.datetime.now()
+
+    columns = kwargs.keys()
+    values = list(kwargs.values())
+
+    # Column names for the INSERT statement
+    insert_cols = ", ".join(columns)
+
+    # Value placeholders like $1, $2, $3
+    value_placeholders = ", ".join([f"${i+1}" for i in range(len(values))])
+
+    # The SET part for the ON CONFLICT clause
+    # Example: title = EXCLUDED.title, body_html = EXCLUDED.body_html
+    update_set_clauses = ", ".join(
+        [f"{col} = EXCLUDED.{col}" for col in columns if col != "id"]
     )
 
-    if existing_product:
-        # Update existing product
-        set_clauses: List[str] = []
-        values: List[Any] = []
-        param_count = 1
+    query = f"""
+        INSERT INTO products ({insert_cols})
+        VALUES ({value_placeholders})
+        ON CONFLICT (id) DO UPDATE
+        SET {update_set_clauses};
+    """
 
-        for field, value in kwargs.items():
-            set_clauses.append(f"{field} = ${param_count}")
-            values.append(value)
-            param_count += 1
-
-        if not set_clauses:
-            return
-
-        set_clauses.append(f"updated_at = ${param_count}")
-        values.append(datetime.datetime.now())
-
-        query = f"""
-            UPDATE products
-            SET {", ".join(set_clauses)}
-            WHERE id = ${param_count + 1}
-        """
-        values.append(product_id)
-
-        await conn.execute(query, *values)
-        logging.info(f"Updated product {product_id} with fields: {list(kwargs.keys())}")
-    else:
-        # Create new product
-        insert_columns: List[str] = ["id"]
-        insert_values: List[Any] = [product_id]
-        value_placeholders: List[str] = ["$1"]
-        param_count = 2
-
-        for field, value in kwargs.items():
-            insert_columns.append(field)
-            insert_values.append(value)
-            value_placeholders.append(f"${param_count}")
-            param_count += 1
-
-        insert_columns.append("created_at")
-        insert_values.append(datetime.datetime.now())
-        value_placeholders.append(f"${param_count}")
-
-        insert_columns.append("updated_at")
-        insert_values.append(datetime.datetime.now())
-        value_placeholders.append(f"${param_count + 1}")
-
-        query = f"""
-            INSERT INTO products ({", ".join(insert_columns)})
-            VALUES ({", ".join(value_placeholders)})
-        """
-        await conn.execute(query, *insert_values)
-        logging.info(
-            f"Created new product {product_id} with fields: {list(kwargs.keys())}"
-        )
+    await conn.execute(query, *values)
+    logging.info(f"Upserted product {product_id} with fields: {list(kwargs.keys())}")
 
 
 @db_connection_decorator

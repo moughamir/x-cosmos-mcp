@@ -1,7 +1,5 @@
-Rewrite the following HTML product description into clear, well-structured English.
-Maintain factual accuracy and preserve product specifications.
-
-Return clean HTML with short paragraphs and bullet points where relevant.
-
-Description:
-{{ body_html }}
+{
+  "optimized_title": "{{ product_data.get('title','')[:80]|replace('\\n',' ') }}",
+  "optimized_description": "{{ clean_html(product_data.get('body_html',''))[:800]|replace('\\n',' ') }}",
+  "content_score": 0.0
+}

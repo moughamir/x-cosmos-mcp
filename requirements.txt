@@ -1,22 +1,37 @@
-PyYAML
-Jinja2
-fastapi
-uvicorn
+# core
+requests
+python-dotenv
+jinja2
+tqdm
+
+# Ollama client (if using python wrapper)
+ollama
+
+# Supabase client
+supabase
+
+# HTTP / async helpers (from your list)
+httpx
+aiohttp
 aiofiles
 python-multipart
-sqlite-utils
-ruff
-aiosqlite
-pydantic-settings
-ollama
-httpx
-requests
-beautifulsoup4
-aiohttp
-uvicorn[standard]
+
+# DB drivers and SQL
 asyncpg
 psycopg2-binary
+sqlite-utils
+aiosqlite
+
+# dev / lint / formatting (optional)
+PyYAML
+beautifulsoup4
+ruff
+pydantic-settings
+fastapi
+uvicorn
+uvicorn[standard]
 black
 mypy
 isort
 fastmcp
+types-requests

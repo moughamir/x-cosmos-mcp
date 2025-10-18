@@ -1,45 +1,5 @@
-{% system %}
-You are an expert SEO assistant. Your task is to optimize meta tags for e-commerce products.
-{% endsystem %}
-
-**Task:** Optimize the meta tags for the following product.
-
-**Product Details:**
-*   **Title:** {{ product_data.get('title', '') }}
-*   **Type:** {{ product_data.get('product_type', '') }}
-*   **Description:** {{ clean_html(product_data.get('body_html', ''))[:500] }}
-
-**Instructions:**
-1.  Generate an SEO-optimized meta title between 55 and 60 characters.
-2.  Create a compelling meta description between 150 and 160 characters.
-3.  Provide a list of 5-8 relevant keywords.
-4.  Respond with a valid JSON object with the following keys: `meta_title`, `meta_description`, `seo_keywords`.
-
-**Example Input:**
-```json
 {
-    "title": "Men's Classic Leather Wallet",
-    "product_type": "Accessories",
-    "body_html": "A timeless leather wallet for the modern man. Made from genuine leather, this wallet features multiple card slots and a spacious bill compartment."
+  "meta_title": "{{ product_data.get('title','')[:60]|replace('\\n',' ') }}",
+  "meta_description": "{{ clean_html(product_data.get('body_html',''))[:155]|replace('\\n',' ') }}",
+  "seo_keywords": []
 }
-```
-
-**Example Output:**
-```json
-{
-    "meta_title": "Men's Classic Leather Wallet | Genuine Leather",
-    "meta_description": "Shop our classic men's leather wallet. Made from genuine leather, it's the perfect accessory for the modern man. Durable, stylish, and functional.",
-    "seo_keywords": ["leather wallet", "men's wallet", "classic wallet", "genuine leather", "bifold wallet"]
-}
-```
-
-**Product to Optimize:**
-```json
-{
-    "title": "{{ product_data.get('title', '') }}",
-    "product_type": "{{ product_data.get('product_type', '') }}",
-    "body_html": "{{ clean_html(product_data.get('body_html', ''))[:500] }}"
-}
-```
-
-**Optimized Meta Tags (JSON):**

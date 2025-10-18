@@ -23,7 +23,6 @@ from .utils.db import (
     get_products_for_review,
     log_change,
     mark_as_reviewed,
-    update_database_schema,
     update_product_details,
     update_product_tags,
 )
@@ -94,10 +93,6 @@ set_websocket_manager(manager)
 async def lifespan(app: FastAPI):
     # Startup
     try:
-        # Update database schema
-        await update_database_schema()
-        logging.info("Database schema updated successfully")
-
         # Initialize database connection pool
         from .utils.db import init_db_pool
 
@@ -247,6 +242,7 @@ async def get_products(
 
 
 @api_router.get("/products/batch")
+@api_error_handler
 async def get_products_batch_endpoint(limit: int = 10):
     """Get products for batch processing."""
     try:
@@ -258,6 +254,7 @@ async def get_products_batch_endpoint(limit: int = 10):
 
 
 @api_router.get("/products/review")
+@api_error_handler
 async def get_products_for_review_endpoint(limit: int = 10):
     """Get products that need review (low confidence scores)."""
     try:
@@ -269,6 +266,7 @@ async def get_products_for_review_endpoint(limit: int = 10):
 
 
 @api_router.get("/products/{product_id}")
+@api_error_handler
 async def get_product(product_id: int):
     """Get specific product details and change history."""
     try:
@@ -288,6 +286,7 @@ async def get_product(product_id: int):
 
 
 @api_router.post("/products/{product_id}/update")
+@api_error_handler
 async def update_product(product_id: int, updates: dict):
     """Update product details or create if not exists."""
     try:
@@ -354,6 +353,7 @@ async def update_product(product_id: int, updates: dict):
 
 
 @api_router.get("/schema")
+@api_error_handler
 async def get_db_schema_endpoint():
     """Get database schema information."""
     try:
@@ -365,6 +365,7 @@ async def get_db_schema_endpoint():
 
 
 @api_router.get("/changes")
+@api_error_handler
 async def get_changes(limit: int = 100):
     """Get change log."""
     try:
@@ -376,6 +377,7 @@ async def get_changes(limit: int = 100):
 
 
 @api_router.post("/changes/{product_id}/review")
+@api_error_handler
 async def mark_changes_reviewed(product_id: int):
     """Mark all changes for a product as reviewed."""
     try:
@@ -390,6 +392,7 @@ async def mark_changes_reviewed(product_id: int):
 
 
 @api_router.get("/pipeline/runs")
+@api_error_handler
 async def get_pipeline_runs_endpoint(limit: int = 100):
     """Get pipeline run history."""
     try:
@@ -401,6 +404,7 @@ async def get_pipeline_runs_endpoint(limit: int = 100):
 
 
 @api_router.get("/ollama/models")
+@api_error_handler
 async def get_ollama_models():
     """Get available Ollama models."""
     try:
@@ -423,6 +427,7 @@ async def get_ollama_models():
 
 
 @api_router.post("/ollama/pull")
+@api_error_handler
 async def pull_ollama_model_endpoint(request: dict):
     """Pull an Ollama model."""
     try:

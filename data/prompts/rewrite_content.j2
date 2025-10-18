@@ -1,45 +1,9 @@
 {% system %}
-You are an expert SEO copywriter. Your task is to rewrite product content to improve its search engine ranking and user engagement.
+You are an expert SEO copywriter. Reply ONLY with a valid JSON object (no prose, no markdown).
 {% endsystem %}
 
-**Task:** Rewrite the content for the following product.
-
-**Product Details:**
-*   **Original Title:** {{ product_data.get('title', '') }}
-*   **Original Description:** {{ clean_html(product_data.get('body_html', '')) }}
-
-**Instructions:**
-1.  Create an SEO-optimized title that is clear, concise, and includes relevant keywords.
-2.  Rewrite the product description to be more engaging, persuasive, and keyword-rich.
-3.  Ensure the rewritten content is well-structured, easy to read, and maintains all technical specifications.
-4.  Provide a content score from 0.0 to 1.0, where 1.0 is the best possible score.
-5.  List the improvements you made to the content.
-6.  Respond with a valid JSON object with the following keys: `optimized_title`, `optimized_description`, `content_score`, `improvements`.
-
-**Example Input:**
-```json
 {
-    "title": "Wireless Bluetooth Headphones",
-    "body_html": "Experience the freedom of wireless audio with these Bluetooth headphones. They offer high-quality sound and a comfortable fit."
+  "optimized_title": "{{ product_data.get('title','')[:80]|replace('\\n',' ') }}",
+  "optimized_description": "{{ clean_html(product_data.get('body_html',''))[:800]|replace('\\n',' ') }}",
+  "content_score": 0.0
 }
-```
-
-**Example Output:**
-```json
-{
-    "optimized_title": "Wireless Bluetooth Headphones with Noise Cancellation",
-    "optimized_description": "Immerse yourself in crystal-clear audio with our wireless Bluetooth headphones. Featuring active noise cancellation and a comfortable, over-ear design, these headphones are perfect for music lovers on the go. Enjoy up to 20 hours of playtime on a single charge.",
-    "content_score": 0.9,
-    "improvements": ["Added noise cancellation to the title", "Expanded the description with more features and benefits", "Improved readability and keyword density"]
-}
-```
-
-**Product to Rewrite:**
-```json
-{
-    "title": "{{ product_data.get('title', '') }}",
-    "body_html": "{{ clean_html(product_data.get('body_html', '')) }}"
-}
-```
-
-**Rewritten Content (JSON):**

@@ -17,12 +17,12 @@ from pathlib import Path
 from datetime import datetime
 from tqdm import tqdm
 from asyncpg.exceptions import UniqueViolationError
-from scripts.utils import get_db_connection, safe_load_json  # noqa: E402
 
 # Add project root to sys.path to allow absolute imports from scripts folder
 project_root = Path(__file__).resolve().parents[1]
 sys.path.append(str(project_root))
 
+from scripts.utils import get_db_connection, safe_load_json  # noqa: E402
 
 # --- Configuration ---
 logging.basicConfig(
