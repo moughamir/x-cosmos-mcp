@@ -47,6 +47,8 @@ function DetailsSkeleton() {
   );
 }
 
+import { formatDateTime, getStatusVariant } from '@/lib/utils';
+
 export default function PipelineRunDetailsPage() {
   const params = useParams();
   const runId = params.run_id as string;
@@ -76,20 +78,6 @@ export default function PipelineRunDetailsPage() {
 
     fetchDetails();
   }, [runId]);
-
-  const formatDateTime = (isoString: string | null | undefined): string => {
-    if (!isoString) return 'N/A';
-    return new Date(isoString).toLocaleString();
-  };
-
-  const getStatusVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
-    switch (status?.toLowerCase()) {
-      case 'completed': return 'default';
-      case 'running': return 'secondary';
-      case 'failed': return 'destructive';
-      default: return 'outline';
-    }
-  };
 
   if (isLoading) {
     return <DetailsSkeleton />;

@@ -52,13 +52,13 @@ interface CurrentProgress {
   percentage: number;
 }
 
+import { formatDateTime, getStatusVariant } from '@/lib/utils';
+
 export default function PipelineProgressPage() {
   const [pipelineRuns, setPipelineRuns] = useState<PipelineRun[]>([]);
   const [currentProgress, setCurrentProgress] = useState<CurrentProgress | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const socketRef = useRef<WebSocket | null>(null);
-
-import { getWebSocketUrl } from '@/lib/api';
 
   useEffect(() => {
     const socketUrl = getWebSocketUrl('/ws/pipeline-progress');
@@ -115,21 +115,6 @@ import { getWebSocketUrl } from '@/lib/api';
       }
     };
   }, []);
-
-  const formatDateTime = (isoString: string | null | undefined): string => {
-    if (!isoString) return 'N/A';
-    return new Date(isoString).toLocaleString();
-  };
-
-  const getStatusVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
-    switch (status.toLowerCase()) {
-      case 'completed': return 'default';
-      case 'running': return 'secondary';
-      case 'failed': return 'destructive';
-      case 'pending': return 'outline';
-      default: return 'outline';
-    }
-  };
 
   return (
     <Card>
