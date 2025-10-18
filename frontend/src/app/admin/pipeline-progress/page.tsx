@@ -8,6 +8,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
 import { toast } from "sonner";
 import { PipelineRun } from '@/types/PipelineRun';
+import Link from 'next/link';
+import { getWebSocketUrl } from '@/lib/api';
 
 function ProgressTableSkeleton() {
   return (
@@ -56,14 +58,10 @@ export default function PipelineProgressPage() {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const socketRef = useRef<WebSocket | null>(null);
 
-  useEffect(() => {
-    const getWebSocketUrl = () => {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      const wsUrl = apiUrl.replace(/^(http)/, 'ws');
-      return `${wsUrl}/ws/pipeline-progress`;
-    };
+import { getWebSocketUrl } from '@/lib/api';
 
-    const socketUrl = getWebSocketUrl();
+  useEffect(() => {
+    const socketUrl = getWebSocketUrl('/ws/pipeline-progress');
 
     const connect = () => {
       socketRef.current = new WebSocket(socketUrl);
@@ -168,28 +166,32 @@ export default function PipelineProgressPage() {
                 <TableHead>ID</TableHead>
                 <TableHead>Task Type</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Start Time</TableHead>
-                <TableHead>End Time</TableHead>
-                <TableHead>Total</TableHead>
-                <TableHead>Processed</TableHead>
-                <TableHead>Failed</TableHead>
+                <TableHead className="hidden md:table-cell">Start Time</TableHead>
+                <TableHead className="hidden md:table-cell">End Time</TableHead>
+                <TableHead className="hidden sm:table-cell">Total</TableHead>
+                <TableHead className="hidden sm:table-cell">Processed</TableHead>
+                <TableHead className="hidden sm:table-cell">Failed</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {pipelineRuns.map((run) => (
                 <TableRow key={run.id}>
-                  <TableCell>{run.id}</TableCell>
+                  <TableCell>
+                    <Link href={`/admin/pipeline-progress/${run.id}`} className="font-medium text-primary hover:underline">
+                      {run.id}
+                    </Link>
+                  </TableCell>
                   <TableCell>{run.task_type}</TableCell>
                   <TableCell>
                     <Badge variant={getStatusVariant(run.status)} className={run.status === 'running' ? 'animate-pulse' : ''}>
                       {run.status}
                     </Badge>
                   </TableCell>
-                  <TableCell>{formatDateTime(run.start_time)}</TableCell>
-                  <TableCell>{formatDateTime(run.end_time)}</TableCell>
-                  <TableCell>{run.total_products}</TableCell>
-                  <TableCell>{run.processed_products}</TableCell>
-                  <TableCell>{run.failed_products}</TableCell>
+                  <TableCell className="hidden md:table-cell">{formatDateTime(run.start_time)}</TableCell>
+                  <TableCell className="hidden md:table-cell">{formatDateTime(run.end_time)}</TableCell>
+                  <TableCell className="hidden sm:table-cell">{run.total_products}</TableCell>
+                  <TableCell className="hidden sm:table-cell">{run.processed_products}</TableCell>
+                  <TableCell className="hidden sm:table-cell">{run.failed_products}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

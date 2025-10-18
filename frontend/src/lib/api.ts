@@ -40,3 +40,23 @@ export async function fetchApi(path: string, options?: RequestInit): Promise<Res
   }
   throw lastError || new Error('API fetch failed after multiple retries.');
 }
+
+export const getWebSocketUrl = (path: string): string => {
+  // On the server, use the BACKEND_API_URL
+  if (typeof window === 'undefined') {
+    const backendUrl = process.env.BACKEND_API_URL || 'http://localhost:8000';
+    return backendUrl.replace(/^http/, 'ws') + path;
+  }
+
+  // On the client, prioritize NEXT_PUBLIC_API_URL
+  const publicApiUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (publicApiUrl) {
+    return publicApiUrl.replace(/^http/, 'ws') + path;
+  }
+
+  // If NEXT_PUBLIC_API_URL is not set, construct from window location for local dev
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const host = window.location.hostname;
+  const backendPort = 8000; // Default backend port
+  return `${protocol}//${host}:${backendPort}${path}`;
+};
