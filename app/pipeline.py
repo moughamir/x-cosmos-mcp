@@ -546,6 +546,11 @@ class MultiModelSEOManager:
                             ]
 
                         if update_data:
+                            # Ensure handle exists if title is being updated
+                            if "title" in update_data and not update_data.get("handle"):
+                                from .utils.text_cleaner import slugify
+
+                                update_data["handle"] = slugify(update_data["title"])
                             await update_product_details(product_id, **update_data)
 
                         # Handle tags separately via many-to-many relationship
@@ -586,24 +591,54 @@ class MultiModelSEOManager:
                         logger.error(
                             f"Failed to process product {product_id}: {result.error}"
                         )
+                        # Log the failure to the database
+                        await log_change(
+                            product_id,
+                            field=f"{task_type.value}_error",
+                            old=None,
+                            new=result.error,
+                            source="worker_pool_error",
+                        )
 
                 except asyncio.TimeoutError:
                     failed_count += 1
+                    error_message = "Task timed out"
                     results.append(
                         {
                             "product_id": product_id,
                             "status": "timeout",
-                            "error": "Task timed out",
+                            "error": error_message,
                         }
                     )
                     logger.error(f"Task {task_id} for product {product_id} timed out")
+                    await log_change(
+                        product_id,
+                        field=f"{task_type.value}_error",
+                        old=None,
+                        new=error_message,
+                        source="worker_pool_timeout",
+                    )
 
                 except Exception as e:
                     failed_count += 1
+                    error_message = str(e)
                     results.append(
-                        {"product_id": product_id, "status": "error", "error": str(e)}
+                        {
+                            "product_id": product_id,
+                            "status": "error",
+                            "error": error_message,
+                        }
                     )
-                    logger.error(f"Error processing product {product_id}: {e}")
+                    logger.error(
+                        f"Error processing product {product_id}: {error_message}"
+                    )
+                    await log_change(
+                        product_id,
+                        field=f"{task_type.value}_error",
+                        old=None,
+                        new=error_message,
+                        source="worker_pool_exception",
+                    )
 
                 # Broadcast progress update every 5 products or at the end
                 if (processed_count + failed_count) % 5 == 0 or (

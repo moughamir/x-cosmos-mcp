@@ -100,7 +100,7 @@ export function ProductTable({
     const maxVisible = 5;
 
     let startPage = Math.max(1, page - Math.floor(maxVisible / 2));
-    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+    const endPage = Math.min(totalPages, startPage + maxVisible - 1);
 
     if (endPage - startPage < maxVisible - 1) {
       startPage = Math.max(1, endPage - maxVisible + 1);
@@ -209,8 +209,8 @@ export function ProductTable({
               <TableRow>
                 <TableHead className="w-20">ID</TableHead>
                 <TableHead>Title</TableHead>
-                <TableHead className="w-32">Confidence</TableHead>
-                <TableHead>Category</TableHead>
+                <TableHead className="hidden md:table-cell w-32">Confidence</TableHead>
+                <TableHead className="hidden md:table-cell">Category</TableHead>
                 <TableHead className="w-32">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -219,7 +219,7 @@ export function ProductTable({
                 <TableRow key={product.id}>
                   <TableCell className="font-mono text-sm">{product.id}</TableCell>
                   <TableCell className="font-medium">{product.title}</TableCell>
-                  <TableCell>
+                  <TableCell className="hidden md:table-cell">
                     {product.llm_confidence ? (
                       <Badge
                         variant={
@@ -236,7 +236,7 @@ export function ProductTable({
                       <span className="text-gray-400">N/A</span>
                     )}
                   </TableCell>
-                  <TableCell className="text-sm text-gray-600">
+                  <TableCell className="hidden md:table-cell text-sm text-gray-600">
                     {product.gmc_category_label || 'N/A'}
                   </TableCell>
                   <TableCell>

@@ -1,6 +1,6 @@
 # MCP Configuration
 ollama:
-  host: http://localhost
+  host: http://mcp_ollama
   port: 11434
 
 models:
@@ -12,7 +12,7 @@ models:
   concurrency: 1  # keep low for limited RAM
   batch_size: 10
   timeout: 150
-  quantize: false
+  quantize: true
 
 quantized_models:
   llama3.2:1b-instruct-q4_K_M: llama3.2:1b-instruct-q2_K

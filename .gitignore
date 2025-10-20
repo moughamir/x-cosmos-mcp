@@ -34,7 +34,6 @@ dist/
 # Data files - ignore contents but not the directories
 data/sqlite/*
 !data/sqlite/.gitkeep
-data/json/*
 !data/json/.gitkeep
 data/ollama_models/*
 !data/ollama_models/.gitkeep
@@ -46,5 +45,5 @@ views/admin/static/js/*
 !views/admin/static/js/.gitkeep
 
 # Environment variables
-.env
+
 *.gz

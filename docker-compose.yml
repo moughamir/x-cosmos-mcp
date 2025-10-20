@@ -1,29 +1,4 @@
 services:
-  mcp_postgres:
-    image: postgres:15-alpine
-    container_name: mcp-postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-mcp_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mcp_password}
-      POSTGRES_DB: ${POSTGRES_DB:-mcp_db}
-      POSTGRES_HOST_AUTH_METHOD: trust
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "pg_isready -U ${POSTGRES_USER:-mcp_user} -d ${POSTGRES_DB:-mcp_db}",
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - mcp-network
-
   mcp_ollama:
     image: ollama/ollama:latest
     container_name: mcp-ollama
@@ -46,21 +21,18 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    env_file:
+      - .env
     container_name: mcp-backend
     restart: unless-stopped
-    ports:
-      - "8000:8000"
+    networks:
+      - mcp-network
     environment:
-      POSTGRES_HOST: mcp_postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_USER: ${POSTGRES_USER:-mcp_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mcp_password}
-      POSTGRES_DB: ${POSTGRES_DB:-mcp_db}
-      OLLAMA_HOST: http://mcp_ollama:11434
+      POSTGRES_HOST: postgres
     depends_on:
-      mcp_postgres:
-        condition: service_healthy
       mcp_ollama:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
     volumes:
       - ./app:/app/app
@@ -69,17 +41,29 @@ services:
       - ./docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh
     entrypoint: /usr/local/bin/docker-entrypoint.sh
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+
+
+  postgres:
+    image: postgres:15
+    container_name: mcp-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mcp_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mcp_password}
+      POSTGRES_DB: ${POSTGRES_DB:-mcp_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
     networks:
       - mcp-network
-    develop:
-      watch:
-        - action: sync+restart
-          path: ./app
-          target: /app/app
-        - action: rebuild
-          path: ./requirements.txt
-        - action: rebuild
-          path: ./pyproject.toml
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mcp_user} -d ${POSTGRES_DB:-mcp_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   mcp_frontend:
     build:
@@ -90,9 +74,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      BACKEND_API_URL: http://mcp_backend:8000
-    depends_on:
-      - mcp_backend
+      BACKEND_API_URL: http://localhost:8000
     volumes:
       - ./frontend:/app
       - /app/node_modules

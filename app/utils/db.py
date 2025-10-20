@@ -40,17 +40,33 @@ async def init_db_pool():
     global _pool
     if _pool is None:
         logging.info("Initializing PostgreSQL connection pool...")
-        _pool = await asyncpg.create_pool(
-            user=os.getenv("POSTGRES_USER", "mcp_user"),
-            password=os.getenv("POSTGRES_PASSWORD", "mcp_password"),
-            host=os.getenv("POSTGRES_HOST", "postgres"),
-            port=int(os.getenv("POSTGRES_PORT", 5432)),
-            database=os.getenv("POSTGRES_DB", "mcp_db"),
-            min_size=1,
-            max_size=20,  # Increased for better concurrency
-            timeout=60,
-            command_timeout=60,
+        postgres_host = os.getenv("POSTGRES_HOST", "postgres")
+
+        # Check if we're connecting to Supabase (requires SSL)
+        is_supabase = "supabase.co" in postgres_host
+
+        dsn = (
+            f"postgresql://{os.getenv('POSTGRES_USER', 'mcp_user')}:"
+            f"{os.getenv('POSTGRES_PASSWORD', 'mcp_password')}@"
+            f"{postgres_host}:"
+            f"{int(os.getenv('POSTGRES_PORT', 5432))}/"
+            f"{os.getenv('POSTGRES_DB', 'mcp_db')}"
         )
+
+        # Add SSL requirement for Supabase connections
+        pool_kwargs = {
+            "dsn": dsn,
+            "min_size": 1,
+            "max_size": 20,  # Increased for better concurrency
+            "timeout": 60,
+            "command_timeout": 60,
+        }
+
+        if is_supabase:
+            logging.info("Detected Supabase connection - enabling SSL")
+            pool_kwargs["ssl"] = "require"
+
+        _pool = await asyncpg.create_pool(**pool_kwargs)
         logging.info("PostgreSQL connection pool initialized.")
 
 
@@ -96,7 +112,7 @@ async def get_products_paginated(
     min_confidence: Optional[float] = None,
     max_confidence: Optional[float] = None,
 ):
-    """Get products with pagination and filtering"""
+    """Get products with pagination and filtering."""
     offset = (page - 1) * limit
 
     # Build WHERE clause
@@ -747,7 +763,7 @@ async def update_pipeline_run(
 
         query = f"""
             UPDATE pipeline_runs
-            SET {", ".join(set_clauses)}
+            SET {', '.join(set_clauses)}
             WHERE id = ${len(values) + 1}
         """
         values.append(run_id)
@@ -797,18 +813,19 @@ async def get_pipeline_runs(limit: int = 100):
     conn = None
     try:
         conn = await get_db_connection()
-        rows = await conn.fetch(
-            """
+        query = """
             SELECT id, task_type, status, start_time, end_time, total_products, processed_products, failed_products
             FROM pipeline_runs
             ORDER BY start_time DESC
             LIMIT $1
-            """,
-            limit,
-        )
-        return [dict(row) for row in rows]
+            """
+        logging.info(f"Executing query: {query} with limit: {limit}")
+        rows = await conn.fetch(query, limit)
+        result = [dict(row) for row in rows]
+        logging.info(f"Query returned {len(result)} rows")
+        return result
     except Exception as e:
-        logging.error(f"Error fetching pipeline runs: {e}")
+        logging.error(f"Error fetching pipeline runs: {e}", exc_info=True)
         raise
     finally:
         if conn:
@@ -816,3 +833,41 @@ async def get_pipeline_runs(limit: int = 100):
 
 
 # Initialize database pool on module import
+
+
+@db_connection_decorator
+async def get_pipeline_run_details(conn, run_id: int) -> Dict[str, Any]:
+    """Get details for a specific pipeline run, including related change logs."""
+    logging.info(f"Fetching details for run_id: {run_id}")
+    run_details_query = "SELECT * FROM pipeline_runs WHERE id = $1"
+    logging.info(f"Executing query: {run_details_query} with run_id: {run_id}")
+    run_details = await conn.fetchrow(run_details_query, run_id)
+    if not run_details:
+        logging.warning(f"No run details found for run_id: {run_id}")
+        return {"run": None, "logs": []}
+
+    logging.info(f"Run details found: {dict(run_details)}")
+
+    # Get all product IDs associated with this run from the logs
+    product_ids_query = "SELECT DISTINCT product_id FROM changes_log WHERE source = $1"
+    source = f"pipeline_run_{run_id}"
+    logging.info(f"Executing query: {product_ids_query} with source: {source}")
+    product_ids_rows = await conn.fetch(product_ids_query, source)
+    product_ids = [row["product_id"] for row in product_ids_rows]
+    logging.info(f"Found {len(product_ids)} product_ids associated with the run.")
+
+    logs = []
+    if product_ids:
+        logs_query = """
+            SELECT id, product_id, field, old, new, source, created_at, reviewed
+            FROM changes_log
+            WHERE product_id = ANY($1::bigint[]) AND created_at >= $2
+            ORDER BY created_at DESC
+            """
+        logging.info(
+            f"Executing query: {logs_query} with {len(product_ids)} product_ids and start_time: {run_details['start_time']}"
+        )
+        logs = await conn.fetch(logs_query, product_ids, run_details["start_time"])
+        logging.info(f"Found {len(logs)} log entries.")
+
+    return {"run": dict(run_details), "logs": [dict(log) for log in logs]}

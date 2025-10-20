@@ -17,6 +17,7 @@ from .utils.db import (
     get_all_products,
     get_change_log,
     get_db_schema,
+    get_pipeline_run_details,
     get_pipeline_runs,
     get_product_details,
     get_products_batch,
@@ -168,6 +169,7 @@ def api_error_handler(func):
 @api_error_handler
 async def get_prompts():
     """Lists all available prompt files."""
+    logging.info("get_prompts called")
     prompts = get_prompt_files()
     return {"prompts": prompts}
 
@@ -245,206 +247,165 @@ async def get_products(
 @api_error_handler
 async def get_products_batch_endpoint(limit: int = 10):
     """Get products for batch processing."""
-    try:
-        products = await get_products_batch(limit)
-        return {"products": [dict(product) for product in products]}
-    except Exception as e:
-        logging.error(f"Error fetching products batch: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+    products = await get_products_batch(limit)
+    return {"products": [dict(product) for product in products]}
 
 
 @api_router.get("/products/review")
 @api_error_handler
 async def get_products_for_review_endpoint(limit: int = 10):
     """Get products that need review (low confidence scores)."""
-    try:
-        products = await get_products_for_review(limit)
-        return {"products": [dict(product) for product in products]}
-    except Exception as e:
-        logging.error(f"Error fetching products for review: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+    products = await get_products_for_review(limit)
+    return {"products": [dict(product) for product in products]}
 
 
 @api_router.get("/products/{product_id}")
 @api_error_handler
 async def get_product(product_id: int):
     """Get specific product details and change history."""
-    try:
-        result = await get_product_details(product_id)
-        if not result["product"]:
-            raise HTTPException(status_code=404, detail="Product not found")
+    result = await get_product_details(product_id)
+    if not result["product"]:
+        raise HTTPException(status_code=404, detail="Product not found")
 
-        return {
-            "product": dict(result["product"]),
-            "changes": [dict(change) for change in result["changes"]],
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logging.error(f"Error fetching product {product_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+    return {
+        "product": dict(result["product"]),
+        "changes": [dict(change) for change in result["changes"]],
+    }
 
 
 @api_router.post("/products/{product_id}/update")
 @api_error_handler
 async def update_product(product_id: int, updates: dict):
     """Update product details or create if not exists."""
-    try:
-        # Get original product data for logging if it exists
-        original_product_details = await get_product_details(product_id)
-        original_product = original_product_details["product"]
+    # Get original product data for logging if it exists
+    original_product_details = await get_product_details(product_id)
+    original_product = original_product_details["product"]
 
-        # Filter out read-only/computed fields that shouldn't be updated directly
-        # These are JOIN results or computed fields, not actual columns in products table
-        readonly_fields = {
-            "vendor_name",
-            "product_type_name",
-            "images",
-            "variants",
-            "options",
-            "created_at",
-            "updated_at",  # These are auto-managed
-        }
+    # Filter out read-only/computed fields that shouldn't be updated directly
+    # These are JOIN results or computed fields, not actual columns in products table
+    readonly_fields = {
+        "vendor_name",
+        "product_type_name",
+        "images",
+        "variants",
+        "options",
+        "created_at",
+        "updated_at",  # These are auto-managed
+    }
 
-        # Extract tags separately (they need special handling via junction table)
-        tags = updates.pop("tags", None)
+    # Extract tags separately (they need special handling via junction table)
+    tags = updates.pop("tags", None)
 
-        filtered_updates = {
-            k: v for k, v in updates.items() if k not in readonly_fields
-        }
+    filtered_updates = {k: v for k, v in updates.items() if k not in readonly_fields}
 
-        # Update or create the product with filtered fields
-        await update_product_details(product_id, **filtered_updates)
+    # Update or create the product with filtered fields
+    await update_product_details(product_id, **filtered_updates)
 
-        # Handle tags separately if provided
-        if tags is not None:
-            # Convert tags to list if it's a string or array
-            if isinstance(tags, str):
-                tags_list = [t.strip() for t in tags.split(",") if t.strip()]
-            elif isinstance(tags, list):
-                tags_list = tags
-            else:
-                tags_list = []
+    # Handle tags separately if provided
+    if tags is not None:
+        # Convert tags to list if it's a string or array
+        if isinstance(tags, str):
+            tags_list = [t.strip() for t in tags.split(",") if t.strip()]
+        elif isinstance(tags, list):
+            tags_list = tags
+        else:
+            tags_list = []
 
-            await update_product_tags(product_id, tags_list)
+        await update_product_tags(product_id, tags_list)
 
-        # Log changes for each field being updated (only filtered fields)
-        for field, new_value in filtered_updates.items():
-            # Only log if the field existed and changed, or if it's a new field being set
-            if (
-                original_product
-                and field in original_product
-                and original_product[field] != new_value
-            ):
-                await log_change(
-                    product_id, field, original_product[field], new_value, "api_update"
-                )
-            elif (
-                not original_product and new_value is not None
-            ):  # New product, log all fields being set
-                await log_change(product_id, field, None, new_value, "api_create")
+    # Log changes for each field being updated (only filtered fields)
+    for field, new_value in filtered_updates.items():
+        # Only log if the field existed and changed, or if it's a new field being set
+        if (
+            original_product
+            and field in original_product
+            and original_product[field] != new_value
+        ):
+            await log_change(
+                product_id, field, original_product[field], new_value, "api_update"
+            )
+        elif (
+            not original_product and new_value is not None
+        ):  # New product, log all fields being set
+            await log_change(product_id, field, None, new_value, "api_create")
 
-        return {"message": "Product updated/created successfully"}
-    except Exception as e:
-        logging.error(
-            f"Error updating/creating product {product_id}: {e}", exc_info=True
-        )
-        raise HTTPException(status_code=500, detail="Internal server error")
+    return {"message": "Product updated/created successfully"}
 
 
 @api_router.get("/schema")
 @api_error_handler
 async def get_db_schema_endpoint():
     """Get database schema information."""
-    try:
-        schema = await get_db_schema()
-        return {"schema": schema}
-    except Exception as e:
-        logging.error(f"Error fetching database schema: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+    schema = await get_db_schema()
+    return {"schema": schema}
 
 
 @api_router.get("/changes")
 @api_error_handler
 async def get_changes(limit: int = 100):
     """Get change log."""
-    try:
-        changes = await get_change_log(limit)
-        return {"changes": [dict(change) for change in changes]}
-    except Exception as e:
-        logging.error(f"Error fetching changes: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+    changes = await get_change_log(limit)
+    return {"changes": [dict(change) for change in changes]}
 
 
 @api_router.post("/changes/{product_id}/review")
 @api_error_handler
 async def mark_changes_reviewed(product_id: int):
     """Mark all changes for a product as reviewed."""
-    try:
-        await mark_as_reviewed(product_id)
-        return {"message": "Changes marked as reviewed"}
-    except Exception as e:
-        logging.error(
-            f"Error marking changes as reviewed for product {product_id}: {e}",
-            exc_info=True,
-        )
-        raise HTTPException(status_code=500, detail="Internal server error")
+    await mark_as_reviewed(product_id)
+    return {"message": "Changes marked as reviewed"}
 
 
 @api_router.get("/pipeline/runs")
 @api_error_handler
 async def get_pipeline_runs_endpoint(limit: int = 100):
     """Get pipeline run history."""
-    try:
-        runs = await get_pipeline_runs(limit)
-        return {"runs": [dict(run) for run in runs]}
-    except Exception as e:
-        logging.error(f"Error fetching pipeline runs: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+    runs = await get_pipeline_runs(limit)
+    return {"runs": [dict(run) for run in runs]}
+
+
+@api_router.get("/pipeline/runs/{run_id}")
+@api_error_handler
+async def get_run_details(run_id: int):
+    """Get details for a specific pipeline run."""
+    details = await get_pipeline_run_details(run_id)
+    if not details or not details["run"]:
+        raise HTTPException(status_code=404, detail="Pipeline run not found")
+    return details
 
 
 @api_router.get("/ollama/models")
 @api_error_handler
 async def get_ollama_models():
     """Get available Ollama models."""
-    try:
-        models = await list_ollama_models()
-        # Transform the response to match frontend expectations
-        transformed_models = []
-        for model in models:
-            transformed_models.append(
-                {
-                    "name": model.get("name", ""),
-                    "size": model.get("size", 0),
-                    "modified_at": model.get("modified_at", ""),
-                }
-            )
+    models = await list_ollama_models()
+    # Transform the response to match frontend expectations
+    transformed_models = []
+    for model in models:
+        transformed_models.append(
+            {
+                "name": model.get("name", ""),
+                "size": model.get("size", 0),
+                "modified_at": model.get("modified_at", ""),
+            }
+        )
 
-        return {"models": transformed_models}
-    except Exception as e:
-        logging.error(f"Error fetching Ollama models: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+    return {"models": transformed_models}
 
 
 @api_router.post("/ollama/pull")
 @api_error_handler
 async def pull_ollama_model_endpoint(request: dict):
     """Pull an Ollama model."""
-    try:
-        model_name = request.get("model_name")
-        if not model_name:
-            raise HTTPException(status_code=400, detail="model_name is required")
+    model_name = request.get("model_name")
+    if not model_name:
+        raise HTTPException(status_code=400, detail="model_name is required")
 
-        result = await pull_ollama_model(model_name)
+    result = await pull_ollama_model(model_name)
 
-        if "error" in result:
-            raise HTTPException(status_code=500, detail=result["error"])
-        return {"message": "Model pulled successfully"}
-    except HTTPException:
-        raise
-    except Exception as e:
-        logging.error(f"Error pulling Ollama model: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=result["error"])
+    return {"message": "Model pulled successfully"}
 
 
 @app.websocket("/ws/pipeline-progress")
