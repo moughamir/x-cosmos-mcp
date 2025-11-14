@@ -1,0 +1,123 @@
+{
+  "id": 6816385138823,
+  "title": "iPhone 14 512GB Red (GSM Unlocked)",
+  "handle": "iphone-14-512gb-gsm-unlocked-red-new",
+  "body_html": "",
+  "published_at": "2022-10-10T10:30:27-04:00",
+  "created_at": "2022-10-10T10:30:28-04:00",
+  "updated_at": "2025-09-25T13:09:54-04:00",
+  "vendor": "MyStore",
+  "product_type": "iPhone",
+  "tags": [
+    "512GB",
+    "GSM Unlocked",
+    "iPhone 14",
+    "New",
+    "Open Box",
+    "Red"
+  ],
+  "variants": [
+    {
+      "id": 40217352208519,
+      "title": "New",
+      "option1": "New",
+      "option2": null,
+      "option3": null,
+      "sku": "RUXP-44-661",
+      "requires_shipping": true,
+      "taxable": true,
+      "featured_image": {
+        "id": 29843944374407,
+        "product_id": 6816385138823,
+        "position": 1,
+        "created_at": "2022-10-10T10:30:28-04:00",
+        "updated_at": "2022-10-10T10:30:28-04:00",
+        "alt": "iPhone 14 512GB Red (GSM Unlocked)",
+        "width": 584,
+        "height": 772,
+        "src": "https://cdn.shopify.com/s/files/1/0039/8098/4418/products/iPhone_14_Red_fc52c770-6d0b-465f-b436-bea807771f6c.jpg?v=1665412228",
+        "variant_ids": [
+          40217352208519,
+          40217352241287
+        ]
+      },
+      "available": false,
+      "price": "437.99",
+      "grams": 454,
+      "compare_at_price": null,
+      "position": 1,
+      "product_id": 6816385138823,
+      "created_at": "2022-10-10T10:30:28-04:00",
+      "updated_at": "2025-09-25T13:09:54-04:00"
+    },
+    {
+      "id": 40217352241287,
+      "title": "Open Box",
+      "option1": "Open Box",
+      "option2": null,
+      "option3": null,
+      "sku": "HUYO-65-928",
+      "requires_shipping": true,
+      "taxable": true,
+      "featured_image": {
+        "id": 29843944374407,
+        "product_id": 6816385138823,
+        "position": 1,
+        "created_at": "2022-10-10T10:30:28-04:00",
+        "updated_at": "2022-10-10T10:30:28-04:00",
+        "alt": "iPhone 14 512GB Red (GSM Unlocked)",
+        "width": 584,
+        "height": 772,
+        "src": "https://cdn.shopify.com/s/files/1/0039/8098/4418/products/iPhone_14_Red_fc52c770-6d0b-465f-b436-bea807771f6c.jpg?v=1665412228",
+        "variant_ids": [
+          40217352208519,
+          40217352241287
+        ]
+      },
+      "available": false,
+      "price": "395.99",
+      "grams": 454,
+      "compare_at_price": null,
+      "position": 2,
+      "product_id": 6816385138823,
+      "created_at": "2022-10-10T10:30:28-04:00",
+      "updated_at": "2025-09-25T13:09:54-04:00"
+    }
+  ],
+  "images": [
+    {
+      "id": 29843944374407,
+      "created_at": "2022-10-10T10:30:28-04:00",
+      "position": 1,
+      "updated_at": "2022-10-10T10:30:28-04:00",
+      "product_id": 6816385138823,
+      "variant_ids": [
+        40217352208519,
+        40217352241287
+      ],
+      "src": "https://cdn.shopify.com/s/files/1/0039/8098/4418/products/iPhone_14_Red_fc52c770-6d0b-465f-b436-bea807771f6c.jpg?v=1665412228",
+      "width": 584,
+      "height": 772
+    }
+  ],
+  "options": [
+    {
+      "name": "Condition",
+      "position": 1,
+      "values": [
+        "New",
+        "Open Box"
+      ]
+    }
+  ],
+  "optimized_title": "iPhone 14 512GB Red (GSM Unlocked)",
+  "optimized_description": "",
+  "optimized_tags": [
+    "512GB",
+    "GSM Unlocked",
+    "iPhone 14",
+    "New",
+    "Open Box",
+    "Red"
+  ]
+}

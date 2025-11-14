@@ -1,0 +1,183 @@
+{
+  "id": 6742215327875,
+  "title": "Scott Bike Spark 970 blue",
+  "handle": "scott-bike-spark-970-blue",
+  "body_html": "Faster and more capable than ever, the all new Spark 970 can skillfully conquer various terrain and look good doing it. With new integration technology, this \"downcountry\" platform has been updated &amp; upgraded.",
+  "published_at": "2022-03-09T15:29:11-08:00",
+  "created_at": "2022-03-09T14:20:31-08:00",
+  "updated_at": "2025-09-25T09:36:26-07:00",
+  "vendor": "MyStore",
+  "product_type": "Sporting Goods",
+  "tags": [
+    "2023SCOTTSALE",
+    "ALLOY FULL SUSPENSION",
+    "Analog",
+    "BICYCLES",
+    "Default",
+    "MOUNTAIN",
+    "NEW"
+  ],
+  "variants": [
+    {
+      "id": 39680134283395,
+      "title": "Blue / MD",
+      "option1": "Blue",
+      "option2": "MD",
+      "option3": null,
+      "sku": "HFWZ-25-413",
+      "requires_shipping": true,
+      "taxable": true,
+      "featured_image": {
+        "id": 39413962899587,
+        "product_id": 6742215327875,
+        "position": 1,
+        "created_at": "2023-07-07T01:32:49-07:00",
+        "updated_at": "2023-07-07T01:33:01-07:00",
+        "alt": null,
+        "width": 2000,
+        "height": 2000,
+        "src": "https://cdn.shopify.com/s/files/1/0335/2166/4131/files/286278-008.jpg?v=1688718781",
+        "variant_ids": [
+          39680134283395
+        ]
+      },
+      "available": false,
+      "price": "1740.00",
+      "grams": 136078,
+      "compare_at_price": "2900.00",
+      "position": 1,
+      "product_id": 6742215327875,
+      "created_at": "2022-03-09T14:20:32-08:00",
+      "updated_at": "2025-09-25T09:36:26-07:00"
+    },
+    {
+      "id": 39680134316163,
+      "title": "Blue / LG",
+      "option1": "Blue",
+      "option2": "LG",
+      "option3": null,
+      "sku": "IVKH-51-125",
+      "requires_shipping": true,
+      "taxable": true,
+      "featured_image": {
+        "id": 39413962866819,
+        "product_id": 6742215327875,
+        "position": 2,
+        "created_at": "2023-07-07T01:32:49-07:00",
+        "updated_at": "2023-07-07T01:33:01-07:00",
+        "alt": null,
+        "width": 2000,
+        "height": 2000,
+        "src": "https://cdn.shopify.com/s/files/1/0335/2166/4131/files/286278-010.jpg?v=1688718781",
+        "variant_ids": [
+          39680134316163
+        ]
+      },
+      "available": false,
+      "price": "1740.00",
+      "grams": 136078,
+      "compare_at_price": "2900.00",
+      "position": 2,
+      "product_id": 6742215327875,
+      "created_at": "2022-03-09T14:20:32-08:00",
+      "updated_at": "2025-09-25T09:36:26-07:00"
+    },
+    {
+      "id": 39680134348931,
+      "title": "Blue / XL",
+      "option1": "Blue",
+      "option2": "XL",
+      "option3": null,
+      "sku": "RAVP-56-648",
+      "requires_shipping": true,
+      "taxable": true,
+      "featured_image": {
+        "id": 39413962965123,
+        "product_id": 6742215327875,
+        "position": 3,
+        "created_at": "2023-07-07T01:32:50-07:00",
+        "updated_at": "2023-07-07T01:33:01-07:00",
+        "alt": null,
+        "width": 2000,
+        "height": 2000,
+        "src": "https://cdn.shopify.com/s/files/1/0335/2166/4131/files/286278-012.jpg?v=1688718781",
+        "variant_ids": [
+          39680134348931
+        ]
+      },
+      "available": false,
+      "price": "1740.00",
+      "grams": 136078,
+      "compare_at_price": "2900.00",
+      "position": 3,
+      "product_id": 6742215327875,
+      "created_at": "2022-03-09T14:20:32-08:00",
+      "updated_at": "2025-09-25T09:36:26-07:00"
+    }
+  ],
+  "images": [
+    {
+      "id": 39413962899587,
+      "created_at": "2023-07-07T01:32:49-07:00",
+      "position": 1,
+      "updated_at": "2023-07-07T01:33:01-07:00",
+      "product_id": 6742215327875,
+      "variant_ids": [
+        39680134283395
+      ],
+      "src": "https://cdn.shopify.com/s/files/1/0335/2166/4131/files/286278-008.jpg?v=1688718781",
+      "width": 2000,
+      "height": 2000
+    },
+    {
+      "id": 39413962866819,
+      "created_at": "2023-07-07T01:32:49-07:00",
+      "position": 2,
+      "updated_at": "2023-07-07T01:33:01-07:00",
+      "product_id": 6742215327875,
+      "variant_ids": [
+        39680134316163
+      ],
+      "src": "https://cdn.shopify.com/s/files/1/0335/2166/4131/files/286278-010.jpg?v=1688718781",
+      "width": 2000,
+      "height": 2000
+    },
+    {
+      "id": 39413962965123,
+      "created_at": "2023-07-07T01:32:50-07:00",
+      "position": 3,
+      "updated_at": "2023-07-07T01:33:01-07:00",
+      "product_id": 6742215327875,
+      "variant_ids": [
+        39680134348931
+      ],
+      "src": "https://cdn.shopify.com/s/files/1/0335/2166/4131/files/286278-012.jpg?v=1688718781",
+      "width": 2000,
+      "height": 2000
+    }
+  ],
+  "options": [
+    {
+      "name": "Color",
+      "position": 1,
+      "values": [
+        "Blue"
+      ]
+    },
+    {
+      "name": "Size",
+      "position": 2,
+      "values": [
+        "MD",
+        "LG",
+        "XL"
+      ]
+    }
+  ],
+  "optimized_title": "Scott Bike Spark 970 blue",
+  "optimized_description": "Faster and more capable than ever, the all new Spark 970 can skillfully conquer various terrain and look good doing it. With new integration technology, this \"d",
+  "optimized_tags": [
+    "tag1",
+    "tag2"
+  ]
+}

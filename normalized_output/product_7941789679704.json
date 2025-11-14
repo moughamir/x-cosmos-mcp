@@ -1,0 +1,88 @@
+{
+  "id": 7941789679704,
+  "title": "Radiant #628470373",
+  "handle": "628470373",
+  "body_html": null,
+  "published_at": "2024-06-01T23:39:03-04:00",
+  "created_at": "2024-06-01T23:39:03-04:00",
+  "updated_at": "2025-09-25T13:50:05-04:00",
+  "vendor": "MyStore",
+  "product_type": "Diamond",
+  "tags": [
+    "cert_num: 628470373",
+    "clarity: VVS2",
+    "color: F",
+    "cut: N/A",
+    "diamond-product",
+    "diamondId: N/A",
+    "image_file_url:",
+    "LG",
+    "ll-exclusion",
+    "measurements: 9.39-6.52 x 4.62 x",
+    "polish: Excellent",
+    "price: 510.5300",
+    "ringSize: N/A",
+    "shape: Radiant",
+    "size: 2.51",
+    "stock_num: 2023038-016",
+    "symmetry: Excellent",
+    "YBlocklist"
+  ],
+  "variants": [
+    {
+      "id": 41786391625816,
+      "title": "Default Title",
+      "option1": "Default Title",
+      "option2": null,
+      "option3": null,
+      "sku": "SGSK-22-603",
+      "requires_shipping": true,
+      "taxable": true,
+      "featured_image": null,
+      "available": true,
+      "price": "2986.80",
+      "grams": 0,
+      "compare_at_price": null,
+      "position": 1,
+      "product_id": 7941789679704,
+      "created_at": "2024-06-01T23:39:03-04:00",
+      "updated_at": "2025-09-25T13:50:05-04:00"
+    }
+  ],
+  "images": [
+    {
+      "id": 33019424604248,
+      "created_at": "2024-06-01T23:39:07-04:00",
+      "position": 1,
+      "updated_at": "2024-06-01T23:39:07-04:00",
+      "product_id": 7941789679704,
+      "variant_ids": [],
+      "src": "https://cdn.shopify.com/s/files/1/1359/2701/files/defaultDiamondImage_292b3cc3-f914-4607-a256-3536f24488d0.png?v=1717299547",
+      "width": 720,
+      "height": 720
+    }
+  ],
+  "options": [
+    {
+      "name": "Title",
+      "position": 1,
+      "values": [
+        "Default Title"
+      ]
+    }
+  ],
+  "optimized_title": "Radiant #628470373",
+  "optimized_description": "",
+  "optimized_tags": [
+    "cert_num: 628470373",
+    "clarity: VVS2",
+    "color: F",
+    "cut: N/A",
+    "diamond-product",
+    "diamondId: N/A",
+    "image_file_url:",
+    "LG",
+    "ll-exclusion",
+    "measurements: 9.39-6.52 x 4.62 x"
+  ]
+}

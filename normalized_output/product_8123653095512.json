@@ -1,0 +1,88 @@
+{
+  "id": 8123653095512,
+  "title": "Round #2235042480",
+  "handle": "2235042480",
+  "body_html": null,
+  "published_at": "2024-09-09T08:28:14-04:00",
+  "created_at": "2024-09-09T08:28:14-04:00",
+  "updated_at": "2025-09-25T13:49:48-04:00",
+  "vendor": "MyStore",
+  "product_type": "Diamond",
+  "tags": [
+    "cert_num: 2235042480",
+    "clarity: VS1",
+    "color: D",
+    "cut: Excellent",
+    "diamond-product",
+    "diamondId: N/A",
+    "image_file_url:",
+    "LG",
+    "ll-exclusion",
+    "measurements: 8.85 x 8.88 x 5.47",
+    "polish: Excellent",
+    "price: 1028.2800",
+    "ringSize: N/A",
+    "shape: Round",
+    "size: 2.64",
+    "stock_num: 2317-278AA",
+    "symmetry: Excellent",
+    "YBlocklist"
+  ],
+  "variants": [
+    {
+      "id": 42255389229144,
+      "title": "Default Title",
+      "option1": "Default Title",
+      "option2": null,
+      "option3": null,
+      "sku": "GOZK-75-600",
+      "requires_shipping": true,
+      "taxable": true,
+      "featured_image": null,
+      "available": true,
+      "price": "3023.40",
+      "grams": 0,
+      "compare_at_price": null,
+      "position": 1,
+      "product_id": 8123653095512,
+      "created_at": "2024-09-09T08:28:14-04:00",
+      "updated_at": "2025-09-25T13:49:48-04:00"
+    }
+  ],
+  "images": [
+    {
+      "id": 33599335071832,
+      "created_at": "2024-09-09T08:28:19-04:00",
+      "position": 1,
+      "updated_at": "2024-09-09T08:28:19-04:00",
+      "product_id": 8123653095512,
+      "variant_ids": [],
+      "src": "https://cdn.shopify.com/s/files/1/1359/2701/files/defaultDiamondImage_d68124b2-2157-4f8e-b5cc-94e4fce8f0e7.png?v=1725884899",
+      "width": 720,
+      "height": 720
+    }
+  ],
+  "options": [
+    {
+      "name": "Title",
+      "position": 1,
+      "values": [
+        "Default Title"
+      ]
+    }
+  ],
+  "optimized_title": "Round #2235042480",
+  "optimized_description": "",
+  "optimized_tags": [
+    "cert_num: 2235042480",
+    "clarity: VS1",
+    "color: D",
+    "cut: Excellent",
+    "diamond-product",
+    "diamondId: N/A",
+    "image_file_url:",
+    "LG",
+    "ll-exclusion",
+    "measurements: 8.85 x 8.88 x 5.47"
+  ]
+}

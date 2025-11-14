@@ -1,0 +1,113 @@
+{
+  "id": 7225419235513,
+  "title": "Column 59\" Round Pine Wood Dining Table",
+  "handle": "column-59-round-pine-wood-dining-table",
+  "body_html": "<p>Gather family and friends for good food and good conversation with the Column Dining Table. A charming addition to a modern farmhouse, rustic, industrial, or ranch style home, Column boasts a rich wood grain texture, solid pine wood construction, and rests atop a sculpturally carved pedestal base. Complete with a 59-inch round table top for extra leg room, Column accommodates up to eight guests, making it the perfect choice for everyday dining or occasional entertaining.\nSet Includes:\nOne - Column 59\" Round Pine Wood Dining Table</p><h4>Features</h4><ul>\n<li>Rustic Dining Table</li>\n<li>Round 59\" Tabletop</li>\n<li>Sculptural Carved Pedestal Base</li>\n<li>Old Pine Wood Construction</li>\n<li>Actual Wood Color May Vary</li>\n<li>Accommodates Up to 8 People</li>\n<li>Assembly Required</li>\n</ul><br><br><h4>Product Dimensions</h4><ul>\n<li>Overall Product Dimensions: 59\"L x 59\"W x 30\"H</li>\n<li>Table Top Thickness: 1.5\"H</li>\n</ul><br><br><h4>Materials</h4><ul><li>old pine with pattern,Brown wood, Weight Capacity: 331 lbs</li></ul>",
+  "published_at": "2022-02-19T05:19:53-05:00",
+  "created_at": "2022-02-19T05:19:55-05:00",
+  "updated_at": "2025-09-25T13:01:35-04:00",
+  "vendor": "MyStore",
+  "product_type": "Dining > Kitchen and Dining Tables",
+  "tags": [
+    "Color_Brown",
+    "Column",
+    "Type_ Kitchen and Dining Tables"
+  ],
+  "variants": [
+    {
+      "id": 41968686203065,
+      "title": "Brown",
+      "option1": "Brown",
+      "option2": null,
+      "option3": null,
+      "sku": "GBYN-21-512",
+      "requires_shipping": true,
+      "taxable": true,
+      "featured_image": {
+        "id": 31937768849593,
+        "product_id": 7225419235513,
+        "position": 2,
+        "created_at": "2022-02-19T05:19:56-05:00",
+        "updated_at": "2022-02-19T05:19:56-05:00",
+        "alt": "Brown",
+        "width": 1600,
+        "height": 1600,
+        "src": "https://cdn.shopify.com/s/files/1/0555/3841/7849/products/EEI-3493-BRN_1.jpg?v=1645265996",
+        "variant_ids": [
+          41968686203065
+        ]
+      },
+      "available": true,
+      "price": "864.54",
+      "grams": 100699,
+      "compare_at_price": "1969.00",
+      "position": 1,
+      "product_id": 7225419235513,
+      "created_at": "2022-02-19T05:19:56-05:00",
+      "updated_at": "2025-09-25T13:01:35-04:00"
+    }
+  ],
+  "images": [
+    {
+      "id": 31937768816825,
+      "created_at": "2022-02-19T05:19:56-05:00",
+      "position": 1,
+      "updated_at": "2022-02-19T05:19:56-05:00",
+      "product_id": 7225419235513,
+      "variant_ids": [],
+      "src": "https://cdn.shopify.com/s/files/1/0555/3841/7849/products/EEI-3493-BRN_4.jpg?v=1645265996",
+      "width": 1600,
+      "height": 1200
+    },
+    {
+      "id": 31937768849593,
+      "created_at": "2022-02-19T05:19:56-05:00",
+      "position": 2,
+      "updated_at": "2022-02-19T05:19:56-05:00",
+      "product_id": 7225419235513,
+      "variant_ids": [
+        41968686203065
+      ],
+      "src": "https://cdn.shopify.com/s/files/1/0555/3841/7849/products/EEI-3493-BRN_1.jpg?v=1645265996",
+      "width": 1600,
+      "height": 1600
+    },
+    {
+      "id": 31937768882361,
+      "created_at": "2022-02-19T05:19:56-05:00",
+      "position": 3,
+      "updated_at": "2022-02-19T05:19:56-05:00",
+      "product_id": 7225419235513,
+      "variant_ids": [],
+      "src": "https://cdn.shopify.com/s/files/1/0555/3841/7849/products/EEI-3493-BRN_2.jpg?v=1645265996",
+      "width": 1600,
+      "height": 1600
+    },
+    {
+      "id": 31937768915129,
+      "created_at": "2022-02-19T05:19:56-05:00",
+      "position": 4,
+      "updated_at": "2022-02-19T05:19:56-05:00",
+      "product_id": 7225419235513,
+      "variant_ids": [],
+      "src": "https://cdn.shopify.com/s/files/1/0555/3841/7849/products/EEI-3493-BRN_3.jpg?v=1645265996",
+      "width": 1600,
+      "height": 1600
+    }
+  ],
+  "options": [
+    {
+      "name": "Color",
+      "position": 1,
+      "values": [
+        "Brown"
+      ]
+    }
+  ],
+  "optimized_title": "Column 59\" Round Pine Wood Dining Table",
+  "optimized_description": "<p>Gather family and friends for good food and good conversation with the Column Dining Table. A charming addition to a modern farmhouse, rustic, industrial, or",
+  "optimized_tags": [
+    "Tag1",
+    "Tag2"
+  ]
+}

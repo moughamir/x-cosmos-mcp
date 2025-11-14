@@ -1,0 +1,63 @@
+{
+  "id": 8968210055356,
+  "title": "Custom Letters Baguette Two Layer Necklace",
+  "handle": "custom-letters-baguette-two-layer-necklace_pplr_1756846096_70888",
+  "body_html": null,
+  "published_at": "2025-09-03T04:48:18+08:00",
+  "created_at": "2025-09-03T04:48:18+08:00",
+  "updated_at": "2025-09-26T01:47:25+08:00",
+  "vendor": "MyStore",
+  "product_type": "PPLR_HIDDEN_PRODUCT",
+  "tags": [
+    "PPLR_HIDDEN_PRODUCT"
+  ],
+  "variants": [
+    {
+      "id": 45147297317052,
+      "title": "Default Title",
+      "option1": "Default Title",
+      "option2": null,
+      "option3": null,
+      "sku": "XNWS-30-751",
+      "requires_shipping": true,
+      "taxable": true,
+      "featured_image": null,
+      "available": true,
+      "price": "304.80",
+      "grams": 0,
+      "compare_at_price": "1016.00",
+      "position": 1,
+      "product_id": 8968210055356,
+      "created_at": "2025-09-03T04:48:18+08:00",
+      "updated_at": "2025-09-26T01:47:25+08:00"
+    }
+  ],
+  "images": [
+    {
+      "id": 44549877366972,
+      "created_at": "2025-09-03T04:48:18+08:00",
+      "position": 1,
+      "updated_at": "2025-09-03T04:48:18+08:00",
+      "product_id": 8968210055356,
+      "variant_ids": [],
+      "src": "https://cdn.shopify.com/s/files/1/0254/2013/6536/files/1d08ca9b593b2a72e781e94714b85caf.png?v=1756846098",
+      "width": 500,
+      "height": 500
+    }
+  ],
+  "options": [
+    {
+      "name": "Title",
+      "position": 1,
+      "values": [
+        "Default Title"
+      ]
+    }
+  ],
+  "optimized_title": "Custom Letters Baguette Two Layer Necklace",
+  "optimized_description": "",
+  "optimized_tags": [
+    "tag1",
+    "tag2"
+  ]
+}
